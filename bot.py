@@ -1138,6 +1138,169 @@ async def setgroup_command(update: Update, context):
     
     await update.message.reply_text(f"✅ Отлично! Твоя группа теперь: {group_name}", reply_markup=main_menu_keyboard())
 
+# ==================== КОМАНДЫ ДЛЯ КНОПОК МЕНЮ ====================
+
+async def schedule_command(update: Update, context):
+    group = get_user_group(update.effective_user.id)
+    if not group:
+        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
+        return
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") AND day = ? ORDER BY time', (group, get_day_name()))
+    schedule = c.fetchall()
+    conn.close()
+    if not schedule:
+        text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
+    else:
+        text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
+        for i, (time, subj, teach, room) in enumerate(schedule, 1):
+            text += f"{i}. {time} - {subj}\n   👨‍ {teach} | 🚪 {room}\n"
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def schedule_week_command(update: Update, context):
+    group = get_user_group(update.effective_user.id)
+    if not group:
+        await update.message.reply_text("️ Сначала выбери группу командой /setgroup")
+        return
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY CASE day WHEN "Понедельник" THEN 1 WHEN "Вторник" THEN 2 WHEN "Среда" THEN 3 WHEN "Четверг" THEN 4 WHEN "Пятница" THEN 5 WHEN "Суббота" THEN 6 WHEN "Воскресенье" THEN 7 END, time', (group,))
+    schedule = c.fetchall()
+    conn.close()
+    if not schedule:
+        text = f"📅 Расписание для {group} пока не добавлено."
+    else:
+        text = f"📅 Расписание на неделю\n👥 {group}\n\n"
+        cur_day = None
+        for day, time, subj, teach, room in schedule:
+            if day != cur_day: text += f"\n📌 {day}:\n"; cur_day = day
+            text += f"  • {time} - {subj} ({teach}, ауд. {room})\n"
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def grades_command(update: Update, context):
+    await update.message.reply_text(" Оценок пока нет.", reply_markup=main_menu_keyboard())
+
+async def gpa_command(update: Update, context):
+    await update.message.reply_text("🧮 Оценок пока нет.", reply_markup=main_menu_keyboard())
+
+async def teachers_command(update: Update, context):
+    await update.message.reply_text("‍🏫 Список преподавателей пока пуст.", reply_markup=main_menu_keyboard())
+
+async def exams_command(update: Update, context):
+    await update.message.reply_text("🎓 Экзаменов пока не запланировано.", reply_markup=main_menu_keyboard())
+
+async def news_command(update: Update, context):
+    await update.message.reply_text("📰 Новостей пока нет.", reply_markup=main_menu_keyboard())
+
+async def weather_command(update: Update, context):
+    try:
+        r = requests.get("https://api.open-meteo.com/v1/forecast?latitude=55.75&longitude=37.61&current_weather=true")
+        d = r.json()['current_weather']
+        text = f"🌤️ Погода в Москве\n🌡️ {d['temperature']}°C\n💨 Ветер: {d['windspeed']} км/ч"
+    except:
+        text = "❌ Не удалось получить погоду."
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def homework_command(update: Update, context):
+    group = get_user_group(update.effective_user.id)
+    if not group:
+        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
+        return
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY created_at DESC', (group,))
+    hw = c.fetchall()
+    conn.close()
+    if not hw:
+        text = f" Домашних заданий для {group} пока нет!"
+    else:
+        text = f" Домашние задания\n👥 {group}\n\n"
+        for subj, task, dead in hw:
+            text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def contacts_command(update: Update, context):
+    text = (
+        " Контакты Налогового колледжа\n\n"
+        "👩‍💼 Директор: Кузьминская Юлия Борисовна\n\n"
+        "🏢 Адрес: г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n"
+        "(м. Хорошево, м. Полежаевская)\n\n"
+        "🕒 Режим работы:\n"
+        "Пн-Пт: 09:00 - 19:30\n"
+        "Сб: 10:00 - 14:00\n"
+        "Вс: выходной\n\n"
+        "📞 Телефоны:\n"
+        "Приемная комиссия: +7 (495) 568-07-07\n"
+        "Секретарь: +7 (499) 191-00-69\n\n"
+        "🔗 Полезные ссылки:\n"
+        "🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n"
+        "💻 Личный кабинет абитуриента: https://lk-nk.ru\n"
+        " Дистанционное обучение: https://distant-nk.ru"
+    )
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def practice_command(update: Update, context):
+    text = (
+        "💼 Партнеры по практике\n\n"
+        "Наши студенты проходят практику в ведущих организациях:\n\n"
+        "️ Федеральная налоговая служба (ФНС)\n"
+        "🏦 ПАО «Сбербанк»\n"
+        "🏦 ПАО «Московский кредитный банк»\n"
+        "🏦 ПАО «Банк УРАЛСИБ»\n"
+        "️ Департамент труда и соцзащиты г. Москвы\n"
+        " Ассоциация налоговых консультантов\n"
+        "🏢 ООО «Международная консалтинговая группа»\n\n"
+        " Полный список мест практики доступен в учебной части колледжа."
+    )
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def help_command(update: Update, context):
+    text = (
+        "🆘 Помощь\n\n"
+        "📱 Основные команды:\n"
+        "• /start - Главное меню\n"
+        "• /setgroup [ГРУППА] - Выбрать группу\n"
+        "• /schedule - Расписание на день\n"
+        "• /schedule_week - Расписание на неделю\n"
+        "• /homework - Домашние задания\n"
+        "• /grades - Оценки\n"
+        "• /gpa - Средний балл\n"
+        "• /teachers - Преподаватели\n"
+        "• /exams - Экзамены\n"
+        "• /news - Новости\n"
+        "• /weather - Погода\n"
+        "• /contacts - Контакты колледжа\n"
+        "• /practice - Практика\n"
+        "• /anon_chat - Анонимный чат\n\n"
+        "❓ Вопросы:\n"
+        "• Напиши свой вопрос, и он уйдет администратору\n\n"
+        "⚙️ Настройки:\n"
+        "• /setgroup - выбрать или изменить группу"
+    )
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+async def anon_chat_command(update: Update, context):
+    group = get_user_group(update.effective_user.id)
+    if not group:
+        text = "⚠️ Сначала выбери группу командой /setgroup\n\nБез группы анонимный чат не работает."
+        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+        return
+    context.user_data['waiting_for_anon'] = True
+    context.user_data['anon_recipient'] = 'all'
+    text = (
+        f" Анонимный чат\n\n"
+        f"📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
+        f"👉 {ANON_CHANNEL_LINK}\n\n"
+        f"⚠️ ПРАВИЛА:\n"
+        f"• Только для учебы и конструктивных вопросов\n"
+        f"• За оскорбления, буллинг и спам — бан\n"
+        f"• Все сообщения проходят модерацию администратором\n\n"
+        f"Напиши своё сообщение следующим текстом.\n"
+        f"После одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n"
+        f"Чтобы отменить, нажми /start"
+    )
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 def main():
     init_db()
     keep_alive()  # <--- ЭТА СТРОЧКА ЗАПУСКАЕТ ВЕБ-СЕРВЕР ДЛЯ RENDER
@@ -1150,6 +1313,19 @@ def main():
     app.add_handler(CommandHandler("poll_results", poll_results_command))
     app.add_handler(CommandHandler("poll_history", poll_history_command))
     app.add_handler(CommandHandler("setgroup", setgroup_command))
+    app.add_handler(CommandHandler("schedule", schedule_command))
+    app.add_handler(CommandHandler("schedule_week", schedule_week_command))
+    app.add_handler(CommandHandler("grades", grades_command))
+    app.add_handler(CommandHandler("gpa", gpa_command))
+    app.add_handler(CommandHandler("teachers", teachers_command))
+    app.add_handler(CommandHandler("exams", exams_command))
+    app.add_handler(CommandHandler("news", news_command))
+    app.add_handler(CommandHandler("weather", weather_command))
+    app.add_handler(CommandHandler("homework", homework_command))
+    app.add_handler(CommandHandler("contacts", contacts_command))
+    app.add_handler(CommandHandler("practice", practice_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("anon_chat", anon_chat_command))
     app.add_handler(CommandHandler("add_schedule", add_schedule_command))
     app.add_handler(CommandHandler("view_schedule", view_schedule_command))
     app.add_handler(CommandHandler("delete_schedule", delete_schedule_command))
