@@ -5,6 +5,10 @@ from pytz import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import asyncio
+# === ДОБАВЛЕНО ДЛЯ RENDER ===
+from flask import Flask
+from threading import Thread
+# ============================
 
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8951290780:AAFiBdpbVbT_hWOOgO5NlEoXfiXz6F2Sokw"
@@ -100,7 +104,6 @@ def main_menu_keyboard():
          InlineKeyboardButton("📢 Канал анонимок", url=ANON_CHANNEL_LINK)],
         [InlineKeyboardButton("❓ Вопрос админу", callback_data='question'),
          InlineKeyboardButton("👥 Выбрать группу", callback_data='settings')],
-        # === НОВЫЕ КНОПКИ ===
         [InlineKeyboardButton("📍 Контакты", callback_data='contacts_info'),
          InlineKeyboardButton("💼 Практика", callback_data='practice_info')],
         [InlineKeyboardButton("🆘 Помощь", callback_data='help')]
@@ -735,7 +738,6 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
-    # === ОБРАБОТЧИКИ ГОЛОСОВАНИЯ ===
     elif data.startswith('vote_'):
         parts = data.split('_')
         poll_id = parts[1]
@@ -830,7 +832,6 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=back_button())
         return
 
-    # === НОВЫЕ КНОПКИ: КОНТАКТЫ И ПРАКТИКА ===
     elif data == 'contacts_info':
         await query.answer()
         text = (
@@ -870,7 +871,6 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
         return
 
-    # === ОСТАЛЬНЫЕ КНОПКИ ===
     elif data == 'grades': text = "📊 Оценок пока нет."
     elif data == 'gpa': text = "🧮 Оценок пока нет."
     elif data == 'teachers': text = "👨‍🏫 Список преподавателей пока пуст."
@@ -997,9 +997,25 @@ async def handle_message(update: Update, context):
     else:
         await update.message.reply_text("🤔 Используй кнопки или /help", reply_markup=main_menu_keyboard())
 
+# ==================== FLASK СЕРВЕР (ДЛЯ RENDER) ====================
+web_app = Flask('')
+
+@web_app.route('/')
+def home():
+    return "Бот работает!"
+
+def run_flask():
+    web_app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
 # ==================== ЗАПУСК ====================
 def main():
     init_db()
+    keep_alive()  # <--- ЭТА СТРОЧКА ЗАПУСКАЕТ ВЕБ-СЕРВЕР ДЛЯ RENDER
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
