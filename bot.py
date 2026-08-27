@@ -1012,6 +1012,102 @@ def keep_alive():
     t.start()
 
 # ==================== ЗАПУСК ====================
+# ==================== АДМИН: РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ (КТО ГОЛОСОВАЛ) ====================
+async def poll_results_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ Только для админа!")
+        return
+    
+    if not context.args:
+        await update.message.reply_text("⚠️ Формат: /poll_results [ID]\nПример: /poll_results 1")
+        return
+    
+    try:
+        poll_id = int(context.args[0])
+    except:
+        await update.message.reply_text("⚠️ ID должен быть числом!")
+        return
+    
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT question, options, created_at FROM polls WHERE id = ?', (poll_id,))
+    poll = c.fetchone()
+    
+    if not poll:
+        conn.close()
+        await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
+        return
+    
+    question, options_str, created_at = poll
+    options = options_str.split('|')
+    
+    c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = ? ORDER BY pv.option_index', (poll_id,))
+    votes = c.fetchall()
+    
+    vote_counts = {}
+    for i in range(len(options)):
+        vote_counts[i] = 0
+    for vote in votes:
+        vote_counts[vote[0]] = vote_counts.get(vote[0], 0) + 1
+    
+    total_votes = len(votes)
+    conn.close()
+    
+    text = f"📊 РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ #{poll_id}\n\n"
+    text += f"Вопрос: {question.replace('_', ' ')}\n"
+    text += f"Создано: {created_at}\n"
+    text += f"Всего голосов: {total_votes}\n\n"
+    
+    for i, option in enumerate(options):
+        count = vote_counts.get(i, 0)
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        text += f" {option.replace('_', ' ')}: {count} ({percent:.1f}%)\n"
+    
+    if votes:
+        text += "\n Кто голосовал:\n"
+        for opt_idx, fname, uname, gname in votes:
+            info = f"• {fname}"
+            if gname: info += f" ({gname})"
+            if uname and uname != "None": info += f" @{uname}"
+            text += f"{info} → {options[opt_idx].replace('_', ' ')}\n"
+    
+    await update.message.reply_text(text)
+
+# ==================== АДМИН: ИСТОРИЯ ГОЛОСОВАНИЙ ====================
+async def poll_history_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ Только для админа!")
+        return
+    
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT id, question, options, created_at, is_active FROM polls ORDER BY created_at DESC LIMIT 20')
+    polls = c.fetchall()
+    conn.close()
+    
+    if not polls:
+        await update.message.reply_text(" Нет голосований")
+        return
+    
+    text = "🗳️ ИСТОРИЯ ГОЛОСОВАНИЙ (последние 20)\n\n"
+    for pid, q, opts, created, active in polls:
+        options = opts.split('|')
+        status = "✅ Активно" if active == 1 else "🔴 Завершено"
+        
+        conn = sqlite3.connect('college_bot.db')
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = ?', (pid,))
+        vcount = c.fetchone()[0]
+        conn.close()
+        
+        text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n"
+        text += f"📅 {created} | 👥 {vcount} голосов\n"
+        text += f"Варианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\n"
+        text += f"Детали: /poll_results {pid}\n\n"
+        text += "-" * 40 + "\n\n"
+    
+    await update.message.reply_text(text)
+
 def main():
     init_db()
     keep_alive()  # <--- ЭТА СТРОЧКА ЗАПУСКАЕТ ВЕБ-СЕРВЕР ДЛЯ RENDER
@@ -1021,6 +1117,8 @@ def main():
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("create_poll", create_poll_command))
+    app.add_handler(CommandHandler("poll_results", poll_results_command))
+    app.add_handler(CommandHandler("poll_history", poll_history_command))
     app.add_handler(CommandHandler("add_schedule", add_schedule_command))
     app.add_handler(CommandHandler("view_schedule", view_schedule_command))
     app.add_handler(CommandHandler("delete_schedule", delete_schedule_command))
