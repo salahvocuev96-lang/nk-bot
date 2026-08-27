@@ -1336,6 +1336,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 Бот запущен!")
+    
     print(f"👥 Загружено групп: {len(GROUPS)}")
     print(f"🛡️ Модерация анонимок: ВКЛЮЧЕНА")
     print(f"📢 Канал анонимок: {ANON_CHANNEL_ID}")
