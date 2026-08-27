@@ -696,6 +696,9 @@ async def button_handler(update: Update, context):
             "📨 Рассылка:\n"
             "• Ответь на сообщение (фото/текст/видео) командой /broadcast\n\n"
             "🗳️ Голосование:\n"
+            "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
+            "• /poll_history - история всех голосований\n"
+            "• /poll_results [ID] - узнать, кто именно проголосовал\n\n"
             "• /create_poll Вопрос Вариант1 Вариант2 ...\n\n"
             "💬 Модерация:\n"
             "• /admin - открыть админ-панель\n"
@@ -793,7 +796,7 @@ async def button_handler(update: Update, context):
             try:
                 await context.bot.send_message(chat_id=user_data[0], text=text, reply_markup=reply_markup)
                 success += 1
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.3)
             except Exception as e:
                 print(f"Ошибка рассылки: {e}")
                 pass
