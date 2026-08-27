@@ -161,7 +161,7 @@ async def start(update: Update, context):
         conn.commit()
     conn.close()
     
-    text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}!\n\nЯ помогу тебе с учебой.\n\n👇 Выбери действие:"
+  text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}! (ТЕСТ)\n\nЯ помогу тебе с учебой.\n\n👇 Выбери действие:"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 # ==================== АДМИН-КОМАНДА ====================
