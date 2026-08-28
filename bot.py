@@ -1320,7 +1320,7 @@ async def ask_ai_command(update: Update, context):
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-1.5-flash',
             contents=question
         )
         answer = response.text
