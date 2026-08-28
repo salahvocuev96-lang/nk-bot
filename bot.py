@@ -13,7 +13,7 @@ from threading import Thread
 
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8951290780:AAFnEXpmR5YnfaDX59yIlQ85qKdQJq0j32M"
-GEMINI_API_KEY = "AQ.Ab8RN6KsVfduN8qlyHoXDVDB4zVqVrNoc0tvvN6oRRcix0IR2A"
+GEMINI_API_KEY = "AQ.Ab8RN6LCBZb5sMt-T42-9PQEcPwRVS69U9REhcKLbiPtsvRvDQ"
 client = genai.Client(api_key=GEMINI_API_KEY)
 ADMIN_ID = 8688778044
 COLLEGE_NAME = "NK College"
