@@ -1327,8 +1327,7 @@ async def ask_ai_command(update: Update, context):
         await status_msg.delete()
         await update.message.reply_text(f"🤖 **Ответ ИИ:**\n\n{answer}", parse_mode='Markdown')
     except Exception as e:
-        await status_msg.edit_text("❌ Ошибка ИИ. Попробуй переформулировать вопрос.")
-        print(f"Ошибка Gemini: {e}")
+        await status_msg.edit_text(f"❌ Ошибка ИИ: {e}")
 
 def main():
     init_db()
