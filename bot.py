@@ -5,7 +5,6 @@ from pytz import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import asyncio
-from google import genai
 # === ДОБАВЛЕНО ДЛЯ RENDER ===
 from flask import Flask
 from threading import Thread
@@ -13,8 +12,6 @@ from threading import Thread
 
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = "8951290780:AAEE1VDMjka29-WK1THxFjX_kvY1j-bkW4Y"
-GEMINI_API_KEY = "AQ.Ab8RN6LCBZb5sMt-T42-9PQEcPwRVS69U9REhcKLbiPtsvRvDQ"
-client = genai.Client(api_key=GEMINI_API_KEY)
 ADMIN_ID = 8688778044
 COLLEGE_NAME = "NK College"
 TIMEZONE = timezone('Europe/Moscow')
@@ -1292,7 +1289,7 @@ async def anon_chat_command(update: Update, context):
     context.user_data['waiting_for_anon'] = True
     context.user_data['anon_recipient'] = 'all'
     text = (
-        f"💬 Анонимный чат\n\n"
+        f" Анонимный чат\n\n"
         f"📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
         f"👉 {ANON_CHANNEL_LINK}\n\n"
         f"⚠️ ПРАВИЛА:\n"
@@ -1304,38 +1301,12 @@ async def anon_chat_command(update: Update, context):
         f"Чтобы отменить, нажми /start"
     )
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-# ==================== ИИ ПОМОЩНИК (GEMINI НОВАЯ ВЕРСИЯ) ====================
-async def ask_ai_command(update: Update, context):
-    if not context.args:
-        await update.message.reply_text(
-            "🤖 Я готов ответить на твой вопрос!\n\n"
-            "Формат: /ask [твой вопрос]\n\n"
-            "Пример: /ask Объясни простыми словами, что такое инфляция"
-        )
-        return
-
-    question = " ".join(context.args)
-    status_msg = await update.message.reply_text("🤖 ИИ думает...")
-
-    try:
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=question
-        )
-        answer = response.text
-        await status_msg.delete()
-        await update.message.reply_text(f"🤖 **Ответ ИИ:**\n\n{answer}", parse_mode='Markdown')
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Ошибка ИИ: {e}")
-
 def main():
     init_db()
     keep_alive()  # <--- ЭТА СТРОЧКА ЗАПУСКАЕТ ВЕБ-СЕРВЕР ДЛЯ RENDER
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ask", ask_ai_command))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("create_poll", create_poll_command))
