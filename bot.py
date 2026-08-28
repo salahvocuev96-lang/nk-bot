@@ -1293,7 +1293,7 @@ async def anon_chat_command(update: Update, context):
     context.user_data['waiting_for_anon'] = True
     context.user_data['anon_recipient'] = 'all'
     text = (
-        f" Анонимный чат\n\n"
+        f"💬 Анонимный чат\n\n"
         f"📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
         f"👉 {ANON_CHANNEL_LINK}\n\n"
         f"⚠️ ПРАВИЛА:\n"
@@ -1305,26 +1305,7 @@ async def anon_chat_command(update: Update, context):
         f"Чтобы отменить, нажми /start"
     )
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-           )
-           return
 
-       question = " ".join(context.args)
-       
-       # Отправляем "печатает..." чтобы студент не скучал
-       status_msg = await update.message.reply_text("🤖 ИИ думает...")
-
-       try:
-           # Запрос к нейросети
-           response = model.generate_content(question)
-           answer = response.text
-           
-           # Удаляем "печатает..." и отправляем ответ
-           await status_msg.delete()
-           await update.message.reply_text(f"🤖 **Ответ ИИ:**\n\n{answer}", parse_mode='Markdown')
-           
-       except Exception as e:
-           await status_msg.edit_text("❌ Ошибка ИИ. Попробуй переформулировать вопрос.")
-           print(f"Ошибка Gemini: {e}")
 # ==================== ИИ ПОМОЩНИК (GEMINI) ====================
 async def ask_ai_command(update: Update, context):
     if not context.args:
