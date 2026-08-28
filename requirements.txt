@@ -2,3 +2,4 @@ python-telegram-bot
 pytz
 requests
 flask
+google-generativeai
