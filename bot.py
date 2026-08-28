@@ -1329,20 +1329,6 @@ async def ask_ai_command(update: Update, context):
     except Exception as e:
         await status_msg.edit_text("❌ Ошибка ИИ. Попробуй переформулировать вопрос.")
         print(f"Ошибка Gemini: {e}")
-        )
-        return
-
-    question = " ".join(context.args)
-    status_msg = await update.message.reply_text("🤖 ИИ думает...")
-
-    try:
-        response = model.generate_content(question)
-        answer = response.text
-        await status_msg.delete()
-        await update.message.reply_text(f"🤖 **Ответ ИИ:**\n\n{answer}", parse_mode='Markdown')
-    except Exception as e:
-        await status_msg.edit_text("❌ Ошибка ИИ. Попробуй переформулировать вопрос.")
-        print(f"Ошибка Gemini: {e}")
 
 def main():
     init_db()
