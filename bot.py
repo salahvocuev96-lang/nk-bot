@@ -12,7 +12,7 @@ from threading import Thread
 # ============================
 
 # ==================== НАСТРОЙКИ ====================
-BOT_TOKEN = "8951290780:AAFnEXpmR5YnfaDX59yIlQ85qKdQJq0j32M"
+BOT_TOKEN = "8951290780:AAEE1VDMjka29-WK1THxFjX_kvY1j-bkW4Y"
 GEMINI_API_KEY = "AQ.Ab8RN6LCBZb5sMt-T42-9PQEcPwRVS69U9REhcKLbiPtsvRvDQ"
 client = genai.Client(api_key=GEMINI_API_KEY)
 ADMIN_ID = 8688778044
