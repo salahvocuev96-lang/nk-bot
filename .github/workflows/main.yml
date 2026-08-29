@@ -1,0 +1,16 @@
+name: Keep Render Bot Alive
+
+on:
+  schedule:
+    # Запускается каждые 5 минут
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Позволяет запустить вручную для проверки
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service
+        run: |
+          curl -s https://nk-bot-5tv7.onrender.com
+          echo "Бот успешно разбужен!"
