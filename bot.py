@@ -34,7 +34,7 @@ GROUPS = [
 def init_db():
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, group_name TEXT)')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, group_name TEXT, full_name TEXT DEFAULT NULL, phone TEXT DEFAULT NULL, is_verified INTEGER DEFAULT 0)''')
     c.execute('CREATE TABLE IF NOT EXISTS schedule (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, day TEXT, time TEXT, subject TEXT, teacher TEXT, room TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS homework (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, subject TEXT, task TEXT, deadline TEXT, created_at TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS grades (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, subject TEXT, grade INTEGER, date TEXT)')
@@ -154,22 +154,22 @@ async def start(update: Update, context):
     user = update.effective_user
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE user_id = ?', (user.id,))
-    if not c.fetchone():
-        c.execute('INSERT INTO users (user_id, first_name, username) VALUES (?, ?, ?)', 
-                  (user.id, user.first_name, user.username))
-        conn.commit()
+    c.execute('SELECT is_verified FROM users WHERE user_id = ?', (user.id,))
+    row = c.fetchone()
     conn.close()
-    text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}!\n\nЯ помогу тебе с учебой.\n\n👇 Выбери действие:"
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-# ==================== АДМИН-КОМАНДА ====================
-async def admin_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Доступ запрещен!")
+    
+    if not row or row[0] == 0:
+        context.user_data['reg_step'] = 'waiting_full_name'
+        text = (
+            f"👋 Привет, {user.first_name}!\n\n"
+            f"Для доступа к боту {COLLEGE_NAME} нужна быстрая регистрация.\n\n"
+            f"Шаг 1: Напиши свои **ФИО** (полностью, как в журнале)."
+        )
+        await update.message.reply_text(text, parse_mode='Markdown')
         return
-    text = "👨‍💼 Админ-панель\n\nВыбери раздел:"
-    await update.message.reply_text(text, reply_markup=admin_panel_keyboard())
+        
+    text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}!"
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 # ==================== BROADCAST (С МЕДИА) ====================
 async def broadcast_command(update: Update, context):
@@ -472,32 +472,32 @@ async def button_handler(update: Update, context):
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
-    if data.startswith('setgroup_'):
+        if data.startswith('setgroup_'):
         await query.answer()
         group_name = data.replace('setgroup_', '')
+        
+        # Если человек только регистрируется
+        if context.user_data.get('reg_step') == 'waiting_group':
+            context.user_data['reg_group'] = group_name
+            context.user_data['reg_step'] = 'waiting_phone'
+            
+            # Создаем ту самую волшебную кнопку
+            keyboard = [[KeyboardButton(" Поделиться номером телефона", request_contact=True)]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+            
+            await query.edit_message_text(
+                "✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.",
+                reply_markup=reply_markup
+            )
+            return
+            
+        # Если человек просто меняет группу в настройках
         user_id = query.from_user.id
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
         c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
         conn.commit(); conn.close()
         await query.edit_message_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
-        return
-
-    if data == 'schedule':
-        await query.answer()
-        group = get_user_group(query.from_user.id)
-        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
-        else:
-            conn = sqlite3.connect('college_bot.db')
-            c = conn.cursor()
-            c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") AND day = ? ORDER BY time', (group, get_day_name()))
-            schedule = c.fetchall(); conn.close()
-            if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
-            else:
-                text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
-                for i, (time, subj, teach, room) in enumerate(schedule, 1):
-                    text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
-        await query.edit_message_text(text, reply_markup=back_button())
         return
 
     elif data == 'schedule_week':
@@ -960,7 +960,44 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=back_button())
 
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
-async def handle_message(update: Update, context):
+    async def handle_registration_message(update: Update, context):
+    user_id = update.effective_user.id
+    
+    # Если пользователь нажал кнопку "Поделиться номером"
+    if update.message.contact:
+        if context.user_data.get('reg_step') == 'waiting_phone':
+            phone = update.message.contact.phone_number
+            group_name = context.user_data.get('reg_group')
+            full_name = context.user_data.get('reg_full_name')
+            
+            conn = sqlite3.connect('college_bot.db')
+            c = conn.cursor()
+            c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified) 
+                         VALUES (?, ?, ?, ?, ?, ?, 1)
+                         ON CONFLICT(user_id) DO UPDATE SET 
+                            full_name=excluded.full_name, phone=excluded.phone, 
+                            group_name=excluded.group_name, is_verified=1''',
+                      (user_id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
+            conn.commit()
+            conn.close()
+            context.user_data.clear()
+            
+            await update.message.reply_text(
+                f"✅ Регистрация завершена!\n\n {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
+                reply_markup=main_menu_keyboard()
+            )
+            return
+
+    # Если пользователь вводит ФИО
+    if context.user_data.get('reg_step') == 'waiting_full_name':
+        context.user_data['reg_full_name'] = update.message.text.strip()
+        context.user_data['reg_step'] = 'waiting_group'
+        await update.message.reply_text("✅ ФИО принято!\n\nШаг 2: Выбери свою группу из списка ниже:", reply_markup=groups_keyboard())
+        return
+        
+    # Если это не регистрация, передаем обычному чату
+    await handle_message(update, context)
+    async def handle_message(update: Update, context):
     user_id = update.effective_user.id
     text = update.message.text
     
@@ -1376,6 +1413,7 @@ def main():
     app.add_handler(CommandHandler("view_homework", view_homework_command))
     app.add_handler(CommandHandler("delete_homework", delete_homework_command))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 Бот запущен!")
