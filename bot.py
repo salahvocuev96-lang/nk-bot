@@ -91,7 +91,7 @@ def main_menu_keyboard():
          InlineKeyboardButton("📅 Расписание на неделю", callback_data='schedule_week')],
         [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
-        [InlineKeyboardButton("👨🏫 Преподаватели", callback_data='teachers'),
+        [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
          InlineKeyboardButton("🎓 Экзамены", callback_data='exams')],
         [InlineKeyboardButton("📰 Новости", callback_data='news'),
          InlineKeyboardButton("🌤️ Погода", callback_data='weather')],
@@ -100,10 +100,9 @@ def main_menu_keyboard():
         [InlineKeyboardButton("💬 Анонимный чат", callback_data='anon_chat'),
          InlineKeyboardButton("📢 Канал анонимок", url=ANON_CHANNEL_LINK)],
         [InlineKeyboardButton("❓ Вопрос админу", callback_data='question'),
-         InlineKeyboardButton("👥 Выбрать группу", callback_data='settings')],
-        [InlineKeyboardButton("📍 Контакты", callback_data='contacts_info'),
-         InlineKeyboardButton("💼 Практика", callback_data='practice_info')],
-        [InlineKeyboardButton(" Помощь", callback_data='help')]
+         InlineKeyboardButton("📍 Контакты", callback_data='contacts_info')],
+        [InlineKeyboardButton("💼 Практика", callback_data='practice_info'),
+         InlineKeyboardButton("🆘 Помощь", callback_data='help')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
