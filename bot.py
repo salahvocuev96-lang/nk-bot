@@ -696,9 +696,9 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
-    elif data == 'admin_help':
+        elif data == 'admin_help':
         if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
+            await query.answer(" Доступ запрещен!", show_alert=True)
             return
         await query.answer()
         text = (
@@ -718,13 +718,17 @@ async def button_handler(update: Update, context):
             "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
             "• /poll_history - история всех голосований\n"
             "• /poll_results [ID] - узнать, кто именно проголосовал\n\n"
+            "👥 Управление пользователями:\n"
+            "• /delete_user [ID] - удалить пользователя из базы\n"
+            "• /active_users [дней] - кто был активен (по умолч. 7 дней)\n"
+            "• /inactive_users [дней] - кто не заходил (по умолч. 30 дней)\n\n"
             "💬 Модерация:\n"
             "• /admin - открыть админ-панель\n"
             "• Модерация анонимок через кнопки\n\n"
             "💡 Примеры:\n"
             "/add_schedule ПН 09:00 Математика Иванов 301\n"
-            "/add_homework 1Ю1/925o Математика Стр. 45 До пятницы\n"
-            "/create_poll Где_праздник? В_зале На_улице Онлайн"
+            "/active_users 3\n"
+            "/delete_user 123456789"
         )
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
