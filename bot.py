@@ -481,26 +481,26 @@ async def button_handler(update: Update, context):
         return
 
         if data.startswith('setgroup_'):
-        await query.answer()
-        group_name = data.replace('setgroup_', '')
-        print(f"DEBUG: reg_step = {context.user_data.get('reg_step')}, user_id = {query.from_user.id}")
+            await query.answer()
+            group_name = data.replace('setgroup_', '')
+            print(f"DEBUG: reg_step = {context.user_data.get('reg_step')}, user_id = {query.from_user.id}")
         
-        # Если человек только регистрируется
-        if context.user_data.get('reg_step') == 'waiting_group':
-            context.user_data['reg_group'] = group_name
-            context.user_data['reg_step'] = 'waiting_phone'
+            # Если человек только регистрируется
+            if context.user_data.get('reg_step') == 'waiting_group':
+                context.user_data['reg_group'] = group_name
+                context.user_data['reg_step'] = 'waiting_phone'
             
-            # Создаем ту самую волшебную кнопку
-            keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
-            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+                # Создаем ту самую волшебную кнопку
+                keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
+                reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
             
-            # ИСПРАВЛЕНИЕ: Сначала убираем старые инлайн-кнопки групп
-            await query.edit_message_reply_markup(reply_markup=None)
+                # ИСПРАВЛЕНИЕ: Сначала убираем старые инлайн-кнопки групп
+                await query.edit_message_reply_markup(reply_markup=None)
             
-            # А затем отправляем НОВОЕ сообщение с обычной кнопкой телефона
-            await query.message.reply_text(
-                "✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.",
-                reply_markup=reply_markup
+                # А затем отправляем НОВОЕ сообщение с обычной кнопкой телефона
+                await query.message.reply_text(
+                    "✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.",
+                    reply_markup=reply_markup
             )
             return
             
