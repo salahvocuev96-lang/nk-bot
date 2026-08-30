@@ -179,7 +179,7 @@ async def broadcast_command(update: Update, context):
     
     if not update.message.reply_to_message:
         await update.message.reply_text(
-            "⚠️ Формат: ответь на сообщение командой /broadcast\n\n"
+            "️ Формат: ответь на сообщение командой /broadcast\n\n"
             "Пример:\n"
             "1. Отправь сообщение (текст, фото, видео, документ)\n"
             "2. Нажми 'Ответить' на это сообщение\n"
@@ -241,6 +241,47 @@ async def broadcast_command(update: Update, context):
     
     await update.message.reply_text(
         f"✅ Рассылка завершена!\n\n"
+        f"📨 Отправлено: {success}\n"
+        f"❌ Ошибок: {failed}\n"
+        f"👥 Всего пользователей: {len(users)}"
+    )
+
+# ==================== ОТМЕНА BROADCAST ====================
+async def broadcast_cancel_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ Только для админа!")
+        return
+    
+    users = get_all_users()
+    
+    if not users:
+        await update.message.reply_text("⚠️ В базе нет пользователей!")
+        return
+    
+    await update.message.reply_text(f"📨 Начинаю отмену рассылки {len(users)} пользователям...")
+    
+    success = 0
+    failed = 0
+    
+    cancel_text = (
+        "⚠️ **ПРЕДЫДУЩЕЕ ОБЪЯВЛЕНИЕ ОТМЕНЕНО**\n\n"
+        "Просим игнорировать предыдущее сообщение.\n"
+        "Приносим извинения за неудобства."
+    )
+    
+    for user_data in users:
+        user_id = user_data[0]
+        
+        try:
+            await context.bot.send_message(chat_id=user_id, text=cancel_text, parse_mode='Markdown')
+            success += 1
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            failed += 1
+            print(f"❌ Ошибка отмены пользователю {user_id}: {e}")
+    
+    await update.message.reply_text(
+        f"✅ Отмена рассылки завершена!\n\n"
         f"📨 Отправлено: {success}\n"
         f"❌ Ошибок: {failed}\n"
         f"👥 Всего пользователей: {len(users)}"
@@ -694,7 +735,8 @@ async def button_handler(update: Update, context):
             "• /view_homework - просмотр всех\n"
             "• /delete_homework [ID] - удалить\n\n"
             "📨 Рассылка:\n"
-            "• Ответь на сообщение (фото/текст/видео) командой /broadcast\n\n"
+            "• Ответь на сообщение (фото/текст/видео) командой /broadcast\n"
+            "• /broadcast_cancel - отменить последнюю рассылку\n\n"
             "🗳️ Голосование:\n"
             "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
             "• /poll_history - история всех голосований\n"
@@ -1309,6 +1351,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
+    app.add_handler(CommandHandler("broadcast_cancel", broadcast_cancel_command))
     app.add_handler(CommandHandler("create_poll", create_poll_command))
     app.add_handler(CommandHandler("poll_results", poll_results_command))
     app.add_handler(CommandHandler("poll_history", poll_history_command))
