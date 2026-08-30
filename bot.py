@@ -2,7 +2,7 @@ import sqlite3
 import requests
 import datetime
 from pytz import timezone
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import asyncio
 # === ДОБАВЛЕНО ДЛЯ RENDER ===
@@ -960,7 +960,7 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=back_button())
 
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
-    async def handle_registration_message(update: Update, context):
+async def handle_registration_message(update: Update, context):
     user_id = update.effective_user.id
     
     # Если пользователь нажал кнопку "Поделиться номером"
@@ -983,7 +983,7 @@ async def button_handler(update: Update, context):
             context.user_data.clear()
             
             await update.message.reply_text(
-                f"✅ Регистрация завершена!\n\n {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
+                f"✅ Регистрация завершена!\n\n👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
                 reply_markup=main_menu_keyboard()
             )
             return
@@ -997,7 +997,9 @@ async def button_handler(update: Update, context):
         
     # Если это не регистрация, передаем обычному чату
     await handle_message(update, context)
-    async def handle_message(update: Update, context):
+
+
+async def handle_message(update: Update, context):
     user_id = update.effective_user.id
     text = update.message.text
     
