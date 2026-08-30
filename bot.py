@@ -480,7 +480,7 @@ async def button_handler(update: Update, context):
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
-    if data.startswith('setgroup_'):    
+        if data.startswith('setgroup_'):
         await query.answer()
         group_name = data.replace('setgroup_', '')
         print(f"DEBUG: reg_step = {context.user_data.get('reg_step')}, user_id = {query.from_user.id}")
@@ -494,13 +494,17 @@ async def button_handler(update: Update, context):
             keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
             
-            await query.edit_message_text(
+            # ИСПРАВЛЕНИЕ: Сначала убираем старые инлайн-кнопки групп
+            await query.edit_message_reply_markup(reply_markup=None)
+            
+            # А затем отправляем НОВОЕ сообщение с обычной кнопкой телефона
+            await query.message.reply_text(
                 "✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.",
                 reply_markup=reply_markup
             )
             return
             
-        # Если человек просто меняет группу в настройках
+        # Если человек просто меняет группу в настройках (уже зарегистрирован)
         user_id = query.from_user.id
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
