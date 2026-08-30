@@ -696,14 +696,14 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
-        elif data == 'admin_help':
+    elif data == 'admin_help':  
         if query.from_user.id != ADMIN_ID:
-            await query.answer(" Доступ запрещен!", show_alert=True)
+            await query.answer("⛔ Доступ запрещен!", show_alert=True)
             return
         await query.answer()
         text = (
             "📖 Справка по админ-командам\n\n"
-            "📅 Расписание:\n"
+            " Расписание:\n"
             "• /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД\n"
             "• /view_schedule - просмотр всего\n"
             "• /delete_schedule [ID] - удалить\n\n"
@@ -725,14 +725,13 @@ async def button_handler(update: Update, context):
             "💬 Модерация:\n"
             "• /admin - открыть админ-панель\n"
             "• Модерация анонимок через кнопки\n\n"
-            "💡 Примеры:\n"
+            " Примеры:\n"
             "/add_schedule ПН 09:00 Математика Иванов 301\n"
             "/active_users 3\n"
             "/delete_user 123456789"
         )
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
-
     elif data == 'admin_questions':
         if query.from_user.id != ADMIN_ID:
             await query.answer("⛔ Доступ запрещен!", show_alert=True)
