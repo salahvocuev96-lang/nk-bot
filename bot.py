@@ -466,7 +466,8 @@ async def publish_to_channel(context, anon_id):
 async def button_handler(update: Update, context):
     query = update.callback_query
     data = query.data
-        if data == 'back_to_menu':
+    
+    if data == 'back_to_menu':
         await query.answer()
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
