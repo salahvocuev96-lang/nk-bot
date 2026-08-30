@@ -48,7 +48,8 @@ def init_db():
 def get_user_group(user_id):
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('SELECT group_name FROM users WHERE user_id = ?', (user_id,))
+    # Берем группу из самой последней записи пользователя, даже если он еще не прошел полную верификацию
+    c.execute('SELECT group_name FROM users WHERE user_id = ? ORDER BY user_id DESC LIMIT 1', (user_id,))
     result = c.fetchone()
     conn.close()
     return result[0] if result and result[0] else None
