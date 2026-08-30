@@ -2,7 +2,7 @@ import sqlite3
 import requests
 import datetime
 from pytz import timezone
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 import asyncio
 from flask import Flask
@@ -925,10 +925,20 @@ async def handle_registration_message(update: Update, context):
                             full_name=excluded.full_name, phone=excluded.phone,
                             group_name=excluded.group_name, is_verified=1''',
                       (user_id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
-            conn.commit()
+                      conn.commit()
             conn.close()
             context.user_data.clear()
-                        # Отправляем уведомление админу в лог-канал
+
+            # 1. Сначала убираем клавиатуру с кнопкой телефона и показываем успех
+            await update.message.reply_text(
+                f"✅ Регистрация завершена!\n\n👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            
+            # 2. Сразу показываем главное меню
+            await update.message.reply_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
+
+            # 3. Отправляем уведомление админу в лог-канал
             log_text = (
                 f"🆕 **Новая регистрация!**\n\n"
                 f"🆔 ID пользователя: `{user_id}`\n"
@@ -943,11 +953,7 @@ async def handle_registration_message(update: Update, context):
                 await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=log_text, parse_mode='Markdown')
             except Exception as e:
                 print(f"❌ Ошибка отправки в лог-канал: {e}")
-
-            await update.message.reply_text(
-                f"✅ Регистрация завершена!\n\n👤 {full_name}\n {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
-                reply_markup=main_menu_keyboard()
-            )
+            
             return
 
     # Если пользователь вводит ФИО
