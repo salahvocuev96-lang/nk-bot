@@ -925,7 +925,7 @@ async def handle_registration_message(update: Update, context):
                             full_name=excluded.full_name, phone=excluded.phone,
                             group_name=excluded.group_name, is_verified=1''',
                       (user_id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
-                      conn.commit()
+            conn.commit()
             conn.close()
             context.user_data.clear()
 
@@ -965,7 +965,6 @@ async def handle_registration_message(update: Update, context):
 
     # Если это не регистрация, передаем обычному чату
     await handle_message(update, context)
-
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
 async def handle_message(update: Update, context):
     user_id = update.effective_user.id
