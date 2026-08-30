@@ -411,8 +411,19 @@ async def button_handler(update: Update, context):
     query = update.callback_query
     data = query.data
 
-    if data == 'back_to_menu':
+        if data == 'back_to_menu':
         await query.answer()
+        
+        # Проверяем, находится ли пользователь в процессе регистрации
+        if context.user_data.get('reg_step'):
+            context.user_data.clear()
+            await query.edit_message_text(
+                "❌ Регистрация отменена.\n\n"
+                "Чтобы начать регистрацию заново, пожалуйста, напиши команду /start"
+            )
+            return
+            
+        # Если регистрации нет, просто показываем меню
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
