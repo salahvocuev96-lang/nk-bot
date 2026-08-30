@@ -171,6 +171,14 @@ async def start(update: Update, context):
     text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}!"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
+# ==================== АДМИН-КОМАНДА ====================
+async def admin_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ Доступ запрещен!")
+        return
+    text = "👨‍💼 Админ-панель\n\nВыбери раздел:"
+    await update.message.reply_text(text, reply_markup=admin_panel_keyboard())
+
 # ==================== BROADCAST (С МЕДИА) ====================
 async def broadcast_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
