@@ -1339,8 +1339,8 @@ def main():
     app.add_handler(CommandHandler("view_homework", view_homework_command))
     app.add_handler(CommandHandler("delete_homework", delete_homework_command))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_message))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_registration_message))
+    app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_message))
 
     print("🤖 Бот запущен!")
     print(f"👥 Загружено групп: {len(GROUPS)}")
