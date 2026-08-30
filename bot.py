@@ -480,9 +480,10 @@ async def button_handler(update: Update, context):
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
-    if data.startswith('setgroup_'):
+    if data.startswith('setgroup_'):    
         await query.answer()
         group_name = data.replace('setgroup_', '')
+        print(f"DEBUG: reg_step = {context.user_data.get('reg_step')}, user_id = {query.from_user.id}")
         
         # Если человек только регистрируется
         if context.user_data.get('reg_step') == 'waiting_group':
