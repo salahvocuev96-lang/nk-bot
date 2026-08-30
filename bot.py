@@ -15,6 +15,7 @@ COLLEGE_NAME = "NK College"
 TIMEZONE = timezone('Europe/Moscow')
 ANON_CHANNEL_ID = -1004489728672
 ANON_CHANNEL_LINK = "https://t.me/+y8N08aQQpPhjZjcy"
+LOG_CHANNEL_ID = -1004354073962
 
 GROUPS = [
     "1Ю1/925o", "1Ю2/925o", "1Б1/925o", "1БД1/925o", "1Л1/925o", "1П1/925o",
@@ -927,6 +928,21 @@ async def handle_registration_message(update: Update, context):
             conn.commit()
             conn.close()
             context.user_data.clear()
+                        # Отправляем уведомление админу в лог-канал
+            log_text = (
+                f"🆕 **Новая регистрация!**\n\n"
+                f"🆔 ID пользователя: `{user_id}`\n"
+                f"👤 ФИО: {full_name}\n"
+                f"📞 Телефон: {phone}\n"
+                f"👥 Группа: {group_name}\n"
+            )
+            if update.effective_user.username:
+                log_text += f"🔗 Юзернейм: @{update.effective_user.username}\n"
+            
+            try:
+                await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=log_text, parse_mode='Markdown')
+            except Exception as e:
+                print(f"❌ Ошибка отправки в лог-канал: {e}")
 
             await update.message.reply_text(
                 f"✅ Регистрация завершена!\n\n👤 {full_name}\n {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
