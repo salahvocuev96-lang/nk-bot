@@ -466,13 +466,12 @@ async def publish_to_channel(context, anon_id):
 async def button_handler(update: Update, context):
     query = update.callback_query
     data = query.data
-    
-    if data == 'back_to_menu':
+        if data == 'back_to_menu':
         await query.answer()
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
-        if data.startswith('setgroup_'):
+    if data.startswith('setgroup_'):
         await query.answer()
         group_name = data.replace('setgroup_', '')
         
@@ -482,7 +481,7 @@ async def button_handler(update: Update, context):
             context.user_data['reg_step'] = 'waiting_phone'
             
             # Создаем ту самую волшебную кнопку
-            keyboard = [[KeyboardButton(" Поделиться номером телефона", request_contact=True)]]
+            keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
             
             await query.edit_message_text(
@@ -496,7 +495,8 @@ async def button_handler(update: Update, context):
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
         c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
-        conn.commit(); conn.close()
+        conn.commit()
+        conn.close()
         await query.edit_message_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
         return
 
