@@ -3,7 +3,7 @@ import requests
 import datetime
 from pytz import timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, JobQueue
 import asyncio
 from flask import Flask
 from threading import Thread
@@ -51,6 +51,7 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT, options TEXT, creator_id INTEGER, created_at TEXT, is_active INTEGER DEFAULT 1)')
     c.execute('CREATE TABLE IF NOT EXISTS poll_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, poll_id INTEGER, user_id INTEGER, option_index INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS anon_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, first_name TEXT, username TEXT, group_name TEXT, message TEXT, recipient_type TEXT DEFAULT "all", status TEXT DEFAULT "pending", created_at TEXT, moderated_at TEXT, channel_message_id INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS scheduled_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, file_type TEXT, file_id TEXT, caption TEXT, send_at TEXT)')
     conn.commit()
     conn.close()
 
@@ -101,7 +102,7 @@ def main_menu_keyboard():
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
         [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
          InlineKeyboardButton("🎓 Экзамены", callback_data='exams')],
-        [InlineKeyboardButton(" Новости", callback_data='news'),
+        [InlineKeyboardButton("📰 Новости", callback_data='news'),
          InlineKeyboardButton("🌤️ Погода", callback_data='weather')],
         [InlineKeyboardButton("📈 Посещаемость", callback_data='attendance'),
          InlineKeyboardButton("🗺️ Аудитории", callback_data='rooms')],
@@ -139,14 +140,14 @@ def admin_panel_keyboard():
     c.execute('SELECT COUNT(*) FROM questions WHERE status = "new"')
     questions_count = c.fetchone()[0]
     conn.close()
-    moderation_text = f"📥 Модерация ({pending_count})" if pending_count > 0 else " Модерация"
+    moderation_text = f"📥 Модерация ({pending_count})" if pending_count > 0 else "📥 Модерация"
     questions_text = f"❓ Вопросы ({questions_count})" if questions_count > 0 else "❓ Вопросы"
     keyboard = [
         [InlineKeyboardButton(moderation_text, callback_data='admin_moderation')],
         [InlineKeyboardButton(questions_text, callback_data='admin_questions')],
-        [InlineKeyboardButton(" История модерации", callback_data='admin_moderation_history')],
-        [InlineKeyboardButton(" Статистика бота", callback_data='admin_stats')],
-        [InlineKeyboardButton(" Справка по командам", callback_data='admin_help')],
+        [InlineKeyboardButton("📋 История модерации", callback_data='admin_moderation_history')],
+        [InlineKeyboardButton("📊 Статистика бота", callback_data='admin_stats')],
+        [InlineKeyboardButton("📖 Справка по командам", callback_data='admin_help')],
         [InlineKeyboardButton("🔙 Назад", callback_data='back_to_menu')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -176,13 +177,13 @@ async def admin_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
         await update.message.reply_text("⛔ Доступ запрещен!")
         return
-    text = "‍💼 Админ-панель\n\nВыбери раздел:"
+    text = "👨‍💼 Админ-панель\n\nВыбери раздел:"
     await update.message.reply_text(text, reply_markup=admin_panel_keyboard())
 
 # ==================== BROADCAST ====================
 async def broadcast_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text(" Только для админа!")
+        await update.message.reply_text("⛔ Только для админа!")
         return
     if not update.message.reply_to_message:
         await update.message.reply_text("⚠️ Формат: ответь на сообщение командой /broadcast")
@@ -231,7 +232,7 @@ async def broadcast_command(update: Update, context):
         except Exception as e:
             failed += 1
             print(f"❌ Ошибка отправки пользователю {user_id} ({user_name}): {e}")
-    await update.message.reply_text(f"✅ Рассылка завершена!\n\n📨 Отправлено: {success}\n Ошибок: {failed}\n👥 Всего пользователей: {len(users)}")
+    await update.message.reply_text(f"✅ Рассылка завершена!\n\n📨 Отправлено: {success}\n❌ Ошибок: {failed}\n👥 Всего пользователей: {len(users)}")
 
 # ==================== ОТМЕНА BROADCAST ====================
 async def broadcast_cancel_command(update: Update, context):
@@ -279,7 +280,7 @@ async def create_poll_command(update: Update, context):
         keyboard.append([InlineKeyboardButton(f"🔹 {option.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')])
     keyboard.append([InlineKeyboardButton("📊 Посмотреть результаты", callback_data=f'results_{poll_id}')])
     keyboard.append([InlineKeyboardButton("📢 Отправить всем студентам", callback_data=f'publish_poll_{poll_id}')])
-    text = f"️ Новое голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
+    text = f"🗳️ Новое голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ==================== АДМИН-КОМАНДЫ (Расписание и Домашка) ====================
@@ -387,7 +388,7 @@ async def delete_homework_command(update: Update, context):
     c = conn.cursor()
     c.execute('SELECT group_name, subject, task FROM homework WHERE id = ?', (hid,))
     res = c.fetchone()
-    if not res: conn.close(); return await update.message.reply_text("️ Не найдено!")
+    if not res: conn.close(); return await update.message.reply_text("⚠️ Не найдено!")
     c.execute('DELETE FROM homework WHERE id = ?', (hid,))
     conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Удалено: {res[0]} | {res[1]}: {res[2]}")
@@ -402,7 +403,7 @@ async def publish_to_channel(context, anon_id):
     if not anon:
         return False, "❌ Сообщение не найдено"
     group_name, message_text, recipient_type = anon
-    channel_text = f"💬 Анонимное сообщение\n\n{message_text}\n\n {datetime.datetime.now(TIMEZONE).strftime('%H:%M %d.%m.%Y')}"
+    channel_text = f"💬 Анонимное сообщение\n\n{message_text}\n\n🕐 {datetime.datetime.now(TIMEZONE).strftime('%H:%M %d.%m.%Y')}"
     try:
         msg = await context.bot.send_message(chat_id=ANON_CHANNEL_ID, text=channel_text)
         conn = sqlite3.connect('college_bot.db')
@@ -421,36 +422,24 @@ async def button_handler(update: Update, context):
 
     if data == 'back_to_menu':
         await query.answer()
-        
         if context.user_data.get('reg_step'):
             context.user_data.clear()
-            await query.edit_message_text(
-                "❌ Регистрация отменена.\n\n"
-                "Чтобы начать регистрацию заново, пожалуйста, напиши команду /start"
-            )
+            await query.edit_message_text("❌ Регистрация отменена.\n\nЧтобы начать регистрацию заново, пожалуйста, напиши команду /start")
             return
-            
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
     if data.startswith('setgroup_'):
         await query.answer()
         group_name = data.replace('setgroup_', '')
-
         if context.user_data.get('reg_step') == 'waiting_group':
             context.user_data['reg_group'] = group_name
             context.user_data['reg_step'] = 'waiting_phone'
-
             keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
             reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-
             await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(
-                "✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.",
-                reply_markup=reply_markup
-            )
+            await query.message.reply_text("✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.", reply_markup=reply_markup)
             return
-
         user_id = query.from_user.id
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
@@ -471,16 +460,16 @@ async def button_handler(update: Update, context):
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
             else:
-                text = f"📅 Расписание на {get_day_name()}\n {group}\n\n"
+                text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
                 for i, (time, subj, teach, room) in enumerate(schedule, 1):
-                    text += f"{i}. {time} - {subj}\n   👨🏫 {teach} | 🚪 {room}\n"
+                    text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
         await query.edit_message_text(text, reply_markup=back_button())
         return
 
     elif data == 'schedule_week':
         await query.answer()
         group = get_user_group(query.from_user.id)
-        if not group: text = "️ Сначала укажи группу в Настройках!"
+        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
         else:
             conn = sqlite3.connect('college_bot.db')
             c = conn.cursor()
@@ -488,7 +477,7 @@ async def button_handler(update: Update, context):
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 Расписание для {group} пока не добавлено."
             else:
-                text = f"📅 Расписание на неделю\n {group}\n\n"
+                text = f"📅 Расписание на неделю\n👥 {group}\n\n"
                 cur_day = None
                 for day, time, subj, teach, room in schedule:
                     if day != cur_day: text += f"\n📌 {day}:\n"; cur_day = day
@@ -507,7 +496,7 @@ async def button_handler(update: Update, context):
             hw = c.fetchall(); conn.close()
             if not hw: text = f"📝 Домашних заданий для {group} пока нет!"
             else:
-                text = f"📝 Домашние задания\n {group}\n\n"
+                text = f"📝 Домашние задания\n👥 {group}\n\n"
                 for subj, task, dead in hw:
                     text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
         await query.edit_message_text(text, reply_markup=back_button())
@@ -522,31 +511,19 @@ async def button_handler(update: Update, context):
         else:
             context.user_data['waiting_for_anon'] = True
             context.user_data['anon_recipient'] = 'all'
-            text = (
-                f"💬 Анонимный чат\n\n"
-                f" Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
-                f" {ANON_CHANNEL_LINK}\n\n"
-                f"⚠️ ПРАВИЛА:\n"
-                f"• Только для учебы и конструктивных вопросов\n"
-                f"• За оскорбления, буллинг и спам — бан\n"
-                f"• Все сообщения проходят модерацию администратором\n\n"
-                f"Напиши своё сообщение следующим текстом.\n"
-                f"После одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n"
-                f"◀️ Чтобы отменить, нажми 'Назад'."
-            )
+            text = (f"💬 Анонимный чат\n\n📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n👉 {ANON_CHANNEL_LINK}\n\n⚠️ ПРАВИЛА:\n• Только для учебы и конструктивных вопросов\n• За оскорбления, буллинг и спам — бан\n• Все сообщения проходят модерацию администратором\n\nНапиши своё сообщение следующим текстом.\nПосле одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n◀️ Чтобы отменить, нажми 'Назад'.")
             await query.edit_message_text(text, reply_markup=back_button())
         return
 
     elif data.startswith('approve_anon_'):
         if query.from_user.id != ADMIN_ID:
-            await query.answer(" Только для админа!", show_alert=True)
+            await query.answer("⛔ Только для админа!", show_alert=True)
             return
         await query.answer()
         anon_id = int(data.split('_')[2])
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
-        c.execute('UPDATE anon_messages SET status = "approved", moderated_at = ? WHERE id = ?',
-                  (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
+        c.execute('UPDATE anon_messages SET status = "approved", moderated_at = ? WHERE id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
         conn.commit()
         conn.close()
         success, result_msg = await publish_to_channel(context, anon_id)
@@ -557,10 +534,8 @@ async def button_handler(update: Update, context):
         anon = c.fetchone()
         conn.close()
         if anon:
-            try:
-                await context.bot.send_message(chat_id=anon[0], text="✅ Твоё анонимное сообщение одобрено и опубликовано в канале!")
-            except:
-                pass
+            try: await context.bot.send_message(chat_id=anon[0], text="✅ Твоё анонимное сообщение одобрено и опубликовано в канале!")
+            except: pass
         return
 
     elif data.startswith('reject_anon_'):
@@ -571,8 +546,7 @@ async def button_handler(update: Update, context):
         anon_id = int(data.split('_')[2])
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
-        c.execute('UPDATE anon_messages SET status = "rejected", moderated_at = ? WHERE id = ?',
-                  (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
+        c.execute('UPDATE anon_messages SET status = "rejected", moderated_at = ? WHERE id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
         conn.commit()
         conn.close()
         await query.edit_message_text(f"❌ Сообщение ID {anon_id} отклонено.", reply_markup=back_button())
@@ -582,10 +556,8 @@ async def button_handler(update: Update, context):
         anon = c.fetchone()
         conn.close()
         if anon:
-            try:
-                await context.bot.send_message(chat_id=anon[0], text="❌ Твоё анонимное сообщение отклонено администратором.")
-            except:
-                pass
+            try: await context.bot.send_message(chat_id=anon[0], text="❌ Твоё анонимное сообщение отклонено администратором.")
+            except: pass
         return
 
     elif data == 'admin':
@@ -611,18 +583,13 @@ async def button_handler(update: Update, context):
             text = "📥 Модерация\n\n✅ Нет сообщений на рассмотрении!"
             await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
             return
-        text = f" Модерация\n\n🔴 Сообщений на рассмотрении: {len(pending)}\n\n"
+        text = f"📥 Модерация\n\n🔴 Сообщений на рассмотрении: {len(pending)}\n\n"
         keyboard = []
         for anon_id, first_name, username, group_name, message, recipient_type, created_at in pending:
-            text += f"\n📌 ID {anon_id} ({created_at})\n"
-            text += f"👤 {first_name}"
+            text += f"\n📌 ID {anon_id} ({created_at})\n👤 {first_name}"
             if username and username != "нет": text += f" (@{username})"
-            text += f"\n📤 Кому: 🌍 Всем студентам\n"
-            text += f"💬 {message[:100]}{'...' if len(message) > 100 else ''}\n"
-            keyboard.append([
-                InlineKeyboardButton(f"✅ Одобрить #{anon_id}", callback_data=f'approve_anon_{anon_id}'),
-                InlineKeyboardButton(f"❌ Отклонить #{anon_id}", callback_data=f'reject_anon_{anon_id}')
-            ])
+            text += f"\n📤 Кому: 🌍 Всем студентам\n💬 {message[:100]}{'...' if len(message) > 100 else ''}\n"
+            keyboard.append([InlineKeyboardButton(f"✅ Одобрить #{anon_id}", callback_data=f'approve_anon_{anon_id}'), InlineKeyboardButton(f"❌ Отклонить #{anon_id}", callback_data=f'reject_anon_{anon_id}')])
         keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data='admin')])
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
@@ -641,13 +608,11 @@ async def button_handler(update: Update, context):
             text = "📋 История модерации\n\nИстория пуста."
             await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
             return
-        text = f"📋 История модерации (последние 20)\n\n"
+        text = "📋 История модерации (последние 20)\n\n"
         for anon_id, first_name, group_name, message, recipient_type, status, created_at, moderated_at in history:
             emoji = "✅" if status == "approved" else "❌"
             status_text = "одобрено" if status == "approved" else "отклонено"
-            text += f"{emoji} ID {anon_id} | {first_name} | 🌍 Всем\n"
-            text += f"   💬 {message[:80]}{'...' if len(message) > 80 else ''}\n"
-            text += f"   📅 {created_at} → {status_text} {moderated_at}\n\n"
+            text += f"{emoji} ID {anon_id} | {first_name} | 🌍 Всем\n   💬 {message[:80]}{'...' if len(message) > 80 else ''}\n   📅 {created_at} → {status_text} {moderated_at}\n\n"
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
@@ -658,52 +623,28 @@ async def button_handler(update: Update, context):
         await query.answer()
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM users')
-        total_users = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "pending"')
-        pending_anon = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "approved"')
-        approved_anon = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "rejected"')
-        rejected_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM users'); total_users = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "pending"'); pending_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "approved"'); approved_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "rejected"'); rejected_anon = c.fetchone()[0]
         total_anon = pending_anon + approved_anon + rejected_anon
-        c.execute('SELECT COUNT(*) FROM schedule')
-        total_schedule = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM homework')
-        total_homework = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM questions WHERE status = "new"')
-        new_questions = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM questions')
-        total_questions = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM schedule'); total_schedule = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM homework'); total_homework = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM questions WHERE status = "new"'); new_questions = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM questions'); total_questions = c.fetchone()[0]
         conn.close()
-        text = (
-            f"📊 Статистика бота\n\n"
-            f"👥 Пользователи:\n"
-            f"   Всего зарегистрировано: {total_users}\n\n"
-            f"💬 Анонимный чат:\n"
-            f"   Всего сообщений: {total_anon}\n"
-            f"   ✅ Одобрено: {approved_anon}\n"
-            f"   ❌ Отклонено: {rejected_anon}\n"
-            f"    На модерации: {pending_anon}\n\n"
-            f"📅 Расписание:\n"
-            f"   Всего пар добавлено: {total_schedule}\n\n"
-            f" Домашние задания:\n"
-            f"   Всего домашек: {total_homework}\n\n"
-            f"❓ Вопросы:\n"
-            f"   Всего вопросов: {total_questions}\n"
-            f"   🆕 Новых (непрочитанных): {new_questions}"
-        )
+        text = (f"📊 Статистика бота\n\n👥 Пользователи:\n   Всего зарегистрировано: {total_users}\n\n💬 Анонимный чат:\n   Всего сообщений: {total_anon}\n   ✅ Одобрено: {approved_anon}\n   ❌ Отклонено: {rejected_anon}\n   ⏳ На модерации: {pending_anon}\n\n📅 Расписание:\n   Всего пар добавлено: {total_schedule}\n\n📝 Домашние задания:\n   Всего домашек: {total_homework}\n\n❓ Вопросы:\n   Всего вопросов: {total_questions}\n   🆕 Новых (непрочитанных): {new_questions}")
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
-    elif data == 'admin_help':  
+    elif data == 'admin_help':
         if query.from_user.id != ADMIN_ID:
             await query.answer("⛔ Доступ запрещен!", show_alert=True)
             return
         await query.answer()
         text = (
             "📖 Справка по админ-командам\n\n"
-            " Расписание:\n"
+            "📅 Расписание:\n"
             "• /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД\n"
             "• /view_schedule - просмотр всего\n"
             "• /delete_schedule [ID] - удалить\n\n"
@@ -712,12 +653,13 @@ async def button_handler(update: Update, context):
             "• /view_homework - просмотр всех\n"
             "• /delete_homework [ID] - удалить\n\n"
             "📨 Рассылка:\n"
-            "• Ответь на сообщение (фото/текст/видео) командой /broadcast\n"
-            "• /broadcast_cancel - отменить последнюю рассылку\n\n"
+            "• Ответь на сообщение командой /broadcast\n"
+            "• /broadcast_cancel - отменить рассылку\n"
+            "• /send_later ДД.ММ.ГГГГ ЧЧ:ММ - отложенная рассылка\n\n"
             "🗳️ Голосование:\n"
             "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
             "• /poll_history - история всех голосований\n"
-            "• /poll_results [ID] - узнать, кто именно проголосовал\n\n"
+            "• /poll_results [ID] - узнать, кто проголосовал\n\n"
             "👥 Управление пользователями:\n"
             "• /delete_user [ID] - удалить пользователя из базы\n"
             "• /active_users [дней] - кто был активен (по умолч. 7 дней)\n"
@@ -725,13 +667,14 @@ async def button_handler(update: Update, context):
             "💬 Модерация:\n"
             "• /admin - открыть админ-панель\n"
             "• Модерация анонимок через кнопки\n\n"
-            " Примеры:\n"
+            "💡 Примеры:\n"
             "/add_schedule ПН 09:00 Математика Иванов 301\n"
-            "/active_users 3\n"
+            "/send_later 01.09.2026 08:00\n"
             "/delete_user 123456789"
         )
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
+
     elif data == 'admin_questions':
         if query.from_user.id != ADMIN_ID:
             await query.answer("⛔ Доступ запрещен!", show_alert=True)
@@ -754,10 +697,7 @@ async def button_handler(update: Update, context):
                 conn.close()
                 user_name = user[0] if user else "Неизвестно"
                 user_group = user[1] if user and user[1] else "Группа не указана"
-                text += f"🔹 ID: {q_id}\n"
-                text += f"👤 {user_name} ({user_group})\n"
-                text += f"📅 {date}\n"
-                text += f"💬 {question}\n\n"
+                text += f"🔹 ID: {q_id}\n👤 {user_name} ({user_group})\n📅 {date}\n💬 {question}\n\n"
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
@@ -798,11 +738,11 @@ async def button_handler(update: Update, context):
         for i, option in enumerate(options):
             keyboard.append([InlineKeyboardButton(f"🔹 {option.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')])
         keyboard.append([InlineKeyboardButton("📊 Посмотреть результаты", callback_data=f'results_{poll_id}')])
-        text = f"️ Голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
+        text = f"🗳️ Голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
         reply_markup = InlineKeyboardMarkup(keyboard)
         users = get_all_users()
         await query.answer()
-        await query.edit_message_text(f" Начинаю рассылку голосования {len(users)} студентам...")
+        await query.edit_message_text(f"📨 Начинаю рассылку голосования {len(users)} студентам...")
         success = 0
         for user_data in users:
             try:
@@ -811,7 +751,6 @@ async def button_handler(update: Update, context):
                 await asyncio.sleep(0.3)
             except Exception as e:
                 print(f"Ошибка рассылки: {e}")
-                pass
         await query.edit_message_text(f"✅ Голосование успешно отправлено {success} студентам!")
         return
 
@@ -843,40 +782,13 @@ async def button_handler(update: Update, context):
 
     elif data == 'contacts_info':
         await query.answer()
-        text = (
-            "📍 **Контакты Налогового колледжа**\n\n"
-            "👩‍💼 **Директор:** Кузьминская Юлия Борисовна\n\n"
-            "🏢 **Адрес:** г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n"
-            "(м. Хорошево, м. Полежаевская)\n\n"
-            "🕒 **Режим работы:**\n"
-            "Пн-Пт: 09:00 - 19:30\n"
-            "Сб: 10:00 - 14:00\n"
-            "Вс: выходной\n\n"
-            " **Телефоны:**\n"
-            "Приемная комиссия: +7 (495) 568-07-07\n"
-            "Секретарь: +7 (499) 191-00-69\n\n"
-            "🔗 **Полезные ссылки:**\n"
-            "🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n"
-            "💻 Личный кабинет абитуриента: https://lk-nk.ru\n"
-            " Дистанционное обучение: https://distant-nk.ru"
-        )
+        text = ("📍 **Контакты Налогового колледжа**\n\n👩‍💼 **Директор:** Кузьминская Юлия Борисовна\n\n🏢 **Адрес:** г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n(м. Хорошево, м. Полежаевская)\n\n🕒 **Режим работы:**\nПн-Пт: 09:00 - 19:30\nСб: 10:00 - 14:00\nВс: выходной\n\n📞 **Телефоны:**\nПриемная комиссия: +7 (495) 568-07-07\nСекретарь: +7 (499) 191-00-69\n\n🔗 **Полезные ссылки:**\n🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n💻 Личный кабинет абитуриента: https://lk-nk.ru\n🎓 Дистанционное обучение: https://distant-nk.ru")
         await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
         return
 
     elif data == 'practice_info':
         await query.answer()
-        text = (
-            "💼 **Партнеры по практике**\n\n"
-            "Наши студенты проходят практику в ведущих организациях:\n\n"
-            "️ Федеральная налоговая служба (ФНС)\n"
-            "🏦 ПАО «Сбербанк»\n"
-            "🏦 ПАО «Московский кредитный банк»\n"
-            "🏦 ПАО «Банк УРАЛСИБ»\n"
-            "️ Департамент труда и соцзащиты г. Москвы\n"
-            " Ассоциация налоговых консультантов\n"
-            "🏢 ООО «Международная консалтинговая группа»\n\n"
-            " *Полный список мест практики доступен в учебной части колледжа.*"
-        )
+        text = ("💼 **Партнеры по практике**\n\nНаши студенты проходят практику в ведущих организациях:\n\n🏛️ Федеральная налоговая служба (ФНС)\n🏦 ПАО «Сбербанк»\n🏦 ПАО «Московский кредитный банк»\n🏦 ПАО «Банк УРАЛСИБ»\n⚖️ Департамент труда и соцзащиты г. Москвы\n🤝 Ассоциация налоговых консультантов\n🏢 ООО «Международная консалтинговая группа»\n\n📌 *Полный список мест практики доступен в учебной части колледжа.*")
         await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
         return
 
@@ -890,7 +802,7 @@ async def button_handler(update: Update, context):
             d = r.json()['current_weather']
             text = f"🌤️ Погода в Москве\n🌡️ {d['temperature']}°C\n💨 Ветер: {d['windspeed']} км/ч"
         except: text = "❌ Не удалось получить погоду."
-    elif data == 'exams': text = " Экзаменов пока не запланировано."
+    elif data == 'exams': text = "🎓 Экзаменов пока не запланировано."
     elif data == 'question':
         context.user_data['waiting_for_question'] = True
         text = "❓ Задать вопрос админу\n\nНапиши свой вопрос. Он уйдет лично администратору."
@@ -900,25 +812,16 @@ async def button_handler(update: Update, context):
     elif data == 'reminders': text = "⏰ Напоминания в разработке."
     elif data == 'settings':
         group = get_user_group(query.from_user.id)
-        text = f"👥 Выбор группы\n\n {query.from_user.first_name}\n Группа: {group or 'Не указана'}\n\n👇 Выбери свою группу:"
+        text = f"👥 Выбор группы\n\n👤 {query.from_user.first_name}\n👥 Группа: {group or 'Не указана'}\n\n👇 Выбери свою группу:"
         await query.answer()
         await query.edit_message_text(text, reply_markup=groups_keyboard())
         return
     elif data == 'help':
-        text = (
-            "🆘 Помощь\n\n"
-            "📱 Основные команды:\n"
-            "• /start - Главное меню\n"
-            "• /setgroup [ГРУППА] - Выбрать группу\n\n"
-            "❓ Вопросы:\n"
-            "• Нажми '❓ Вопрос админу'\n\n"
-            "️ Настройки:\n"
-            "• Нажми '👥 Выбрать группу' для выбора группы"
-        )
+        text = ("🆘 Помощь\n\n📱 Основные команды:\n• /start - Главное меню\n• /setgroup [ГРУППА] - Выбрать группу\n\n❓ Вопросы:\n• Нажми '❓ Вопрос админу'\n\n⚙️ Настройки:\n• Нажми '👥 Выбрать группу' для выбора группы")
         await query.answer()
         await query.edit_message_text(text, reply_markup=back_button())
         return
-    else: text = "️ В разработке."
+    else: text = "⚙️ В разработке."
 
     if text:
         await query.answer()
@@ -927,13 +830,11 @@ async def button_handler(update: Update, context):
 # ==================== ОБРАБОТЧИК РЕГИСТРАЦИИ ====================
 async def handle_registration_message(update: Update, context):
     user_id = update.effective_user.id
-
     if update.message.contact:
         if context.user_data.get('reg_step') == 'waiting_phone':
             phone = update.message.contact.phone_number
             group_name = context.user_data.get('reg_group')
             full_name = context.user_data.get('reg_full_name')
-
             conn = sqlite3.connect('college_bot.db')
             c = conn.cursor()
             c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified)
@@ -945,37 +846,21 @@ async def handle_registration_message(update: Update, context):
             conn.commit()
             conn.close()
             context.user_data.clear()
-
-            await update.message.reply_text(
-                f"✅ Регистрация завершена!\n\n👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            
-            await update.message.reply_text(" Выбери действие:", reply_markup=main_menu_keyboard())
-
-            log_text = (
-                f" **Новая регистрация!**\n\n"
-                f"🆔 ID пользователя: `{user_id}`\n"
-                f"👤 ФИО: {full_name}\n"
-                f"📞 Телефон: {phone}\n"
-                f"👥 Группа: {group_name}\n"
-            )
+            await update.message.reply_text(f"✅ Регистрация завершена!\n\n👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!", reply_markup=ReplyKeyboardRemove())
+            await update.message.reply_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
+            log_text = (f"🆕 **Новая регистрация!**\n\n🆔 ID пользователя: `{user_id}`\n👤 ФИО: {full_name}\n📞 Телефон: {phone}\n👥 Группа: {group_name}\n")
             if update.effective_user.username:
                 log_text += f"🔗 Юзернейм: @{update.effective_user.username}\n"
-            
             try:
                 await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=log_text, parse_mode='Markdown')
             except Exception as e:
                 print(f"❌ Ошибка отправки в лог-канал: {e}")
-            
             return
-
     if context.user_data.get('reg_step') == 'waiting_full_name':
         context.user_data['reg_full_name'] = update.message.text.strip()
         context.user_data['reg_step'] = 'waiting_group'
         await update.message.reply_text("✅ ФИО принято!\n\nШаг 2: Выбери свою группу из списка ниже:", reply_markup=groups_keyboard())
         return
-
     await handle_message(update, context)
 
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
@@ -983,11 +868,9 @@ async def handle_message(update: Update, context):
     user_id = update.effective_user.id
     text = update.message.text
 
-    # Обновляем время последней активности
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('UPDATE users SET last_active = ? WHERE user_id = ?', 
-              (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
+    c.execute('UPDATE users SET last_active = ? WHERE user_id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
     conn.commit()
     conn.close()
 
@@ -1008,30 +891,10 @@ async def handle_message(update: Update, context):
         anon_id = c.lastrowid
         conn.commit()
         conn.close()
-        await update.message.reply_text(
-            f"✅ Твоё сообщение отправлено на модерацию!\n\n"
-            f"📤 Получатели: 🌍 Все студенты колледжа\n"
-            f" ID сообщения: {anon_id}\n\n"
-            f"После одобрения администратором оно будет опубликовано в канале анонимок.\n\n"
-            f"⚠️ Если сообщение нарушает правила — оно будет отклонено.",
-            reply_markup=main_menu_keyboard()
-        )
+        await update.message.reply_text(f"✅ Твоё сообщение отправлено на модерацию!\n\n📤 Получатели: 🌍 Все студенты колледжа\n🆔 ID сообщения: {anon_id}\n\nПосле одобрения администратором оно будет опубликовано в канале анонимок.\n\n⚠️ Если сообщение нарушает правила — оно будет отклонено.", reply_markup=main_menu_keyboard())
         sender_username = update.effective_user.username or "нет"
-        admin_msg = (
-            f"📥 НОВОЕ СООБЩЕНИЕ НА МОДЕРАЦИЮ\n\n"
-            f"🆔 ID: {anon_id}\n"
-            f"👤 От: {update.effective_user.first_name}\n"
-            f" Username: @{sender_username}\n"
-            f"👥 Группа: {group}\n"
-            f"📤 Кому: 🌍 Всем студентам\n"
-            f" Время: {datetime.datetime.now(TIMEZONE).strftime('%H:%M')}\n\n"
-            f"💬 Сообщение:\n{text}\n\n"
-            f"Выбери действие:"
-        )
-        keyboard = [
-            [InlineKeyboardButton("✅ Одобрить и опубликовать", callback_data=f'approve_anon_{anon_id}')],
-            [InlineKeyboardButton("❌ Отклонить", callback_data=f'reject_anon_{anon_id}')]
-        ]
+        admin_msg = (f"📥 НОВОЕ СООБЩЕНИЕ НА МОДЕРАЦИЮ\n\n🆔 ID: {anon_id}\n👤 От: {update.effective_user.first_name}\n📱 Username: @{sender_username}\n👥 Группа: {group}\n📤 Кому: 🌍 Всем студентам\n📅 Время: {datetime.datetime.now(TIMEZONE).strftime('%H:%M')}\n\n💬 Сообщение:\n{text}\n\nВыбери действие:")
+        keyboard = [[InlineKeyboardButton("✅ Одобрить и опубликовать", callback_data=f'approve_anon_{anon_id}')], [InlineKeyboardButton("❌ Отклонить", callback_data=f'reject_anon_{anon_id}')]]
         try:
             await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, reply_markup=InlineKeyboardMarkup(keyboard))
             print(f"✅ Анонимка ID {anon_id} на модерации от {update.effective_user.first_name}")
@@ -1042,19 +905,18 @@ async def handle_message(update: Update, context):
     if context.user_data.get('waiting_for_question'):
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
-        c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)',
-                  (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+        c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)', (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
         conn.commit(); conn.close()
         context.user_data['waiting_for_question'] = False
         await update.message.reply_text("✅ Вопрос отправлен админу!", reply_markup=main_menu_keyboard())
-        admin_msg = f"❓ Новый вопрос\n {update.effective_user.first_name}\n {text}"
+        admin_msg = f"❓ Новый вопрос\n👤 {update.effective_user.first_name}\n💬 {text}"
         try: await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
         except: pass
         return
 
     if text.lower().startswith('/setgroup'):
         parts = text.split(' ', 1)
-        if len(parts) < 2: return await update.message.reply_text("️ Пример: /setgroup 1Ю1/925o")
+        if len(parts) < 2: return await update.message.reply_text("⚠️ Пример: /setgroup 1Ю1/925o")
         group_name = parts[1].strip()
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
@@ -1069,11 +931,10 @@ async def handle_message(update: Update, context):
     elif 'спасибо' in text_lower:
         await update.message.reply_text("😊 Пожалуйста!")
     else:
-        await update.message.reply_text(" Используй кнопки или /help", reply_markup=main_menu_keyboard())
+        await update.message.reply_text("🤔 Используй кнопки или /help", reply_markup=main_menu_keyboard())
 
 # ==================== FLASK СЕРВЕР (ДЛЯ RENDER) ====================
 web_app = Flask('')
-
 @web_app.route('/')
 def home():
     return "Бот работает!"
@@ -1094,34 +955,25 @@ async def poll_results_command(update: Update, context):
     if not context.args:
         await update.message.reply_text("⚠️ Формат: /poll_results [ID]\nПример: /poll_results 1")
         return
-    try:
-        poll_id = int(context.args[0])
-    except:
-        await update.message.reply_text("⚠️ ID должен быть числом!")
-        return
+    try: poll_id = int(context.args[0])
+    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
     c.execute('SELECT question, options, created_at FROM polls WHERE id = ?', (poll_id,))
     poll = c.fetchone()
     if not poll:
         conn.close()
-        await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
-        return
+        return await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
     question, options_str, created_at = poll
     options = options_str.split('|')
     c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = ? ORDER BY pv.option_index', (poll_id,))
     votes = c.fetchall()
     vote_counts = {}
-    for i in range(len(options)):
-        vote_counts[i] = 0
-    for vote in votes:
-        vote_counts[vote[0]] = vote_counts.get(vote[0], 0) + 1
+    for i in range(len(options)): vote_counts[i] = 0
+    for vote in votes: vote_counts[vote[0]] = vote_counts.get(vote[0], 0) + 1
     total_votes = len(votes)
     conn.close()
-    text = f"📊 РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ #{poll_id}\n\n"
-    text += f"Вопрос: {question.replace('_', ' ')}\n"
-    text += f"Создано: {created_at}\n"
-    text += f"Всего голосов: {total_votes}\n\n"
+    text = f"📊 РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ #{poll_id}\n\nВопрос: {question.replace('_', ' ')}\nСоздано: {created_at}\nВсего голосов: {total_votes}\n\n"
     for i, option in enumerate(options):
         count = vote_counts.get(i, 0)
         percent = (count / total_votes * 100) if total_votes > 0 else 0
@@ -1138,16 +990,14 @@ async def poll_results_command(update: Update, context):
 # ==================== АДМИН: ИСТОРИЯ ГОЛОСОВАНИЙ ====================
 async def poll_history_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text(" Только для админа!")
+        await update.message.reply_text("⛔ Только для админа!")
         return
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
     c.execute('SELECT id, question, options, created_at, is_active FROM polls ORDER BY created_at DESC LIMIT 20')
     polls = c.fetchall()
     conn.close()
-    if not polls:
-        await update.message.reply_text("🗳️ Нет голосований")
-        return
+    if not polls: return await update.message.reply_text("🗳️ Нет голосований")
     text = "🗳️ ИСТОРИЯ ГОЛОСОВАНИЙ (последние 20)\n\n"
     for pid, q, opts, created, active in polls:
         options = opts.split('|')
@@ -1157,27 +1007,18 @@ async def poll_history_command(update: Update, context):
         c.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = ?', (pid,))
         vcount = c.fetchone()[0]
         conn.close()
-        text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n"
-        text += f"📅 {created} | 👥 {vcount} голосов\n"
-        text += f"Варианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\n"
-        text += f"Детали: /poll_results {pid}\n\n"
-        text += "-" * 40 + "\n\n"
+        text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n📅 {created} | 👥 {vcount} голосов\nВарианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\nДетали: /poll_results {pid}\n\n" + "-" * 40 + "\n\n"
     await update.message.reply_text(text)
 
 # ==================== КОМАНДА /setgroup ====================
 async def setgroup_command(update: Update, context):
     user_id = update.effective_user.id
-    if not context.args:
-        await update.message.reply_text("️ Пример: /setgroup 1Ю1/925o")
-        return
+    if not context.args: return await update.message.reply_text("⚠️ Пример: /setgroup 1Ю1/925o")
     group_name = context.args[0].strip()
-    if group_name not in GROUPS:
-        await update.message.reply_text(f"⚠️ Группа '{group_name}' не найдена!")
-        return
+    if group_name not in GROUPS: return await update.message.reply_text(f"⚠️ Группа '{group_name}' не найдена!")
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO users (user_id, first_name, username) VALUES (?, ?, ?)',
-              (user_id, update.effective_user.first_name, update.effective_user.username))
+    c.execute('INSERT OR IGNORE INTO users (user_id, first_name, username) VALUES (?, ?, ?)', (user_id, update.effective_user.first_name, update.effective_user.username))
     c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
     conn.commit()
     conn.close()
@@ -1185,300 +1026,88 @@ async def setgroup_command(update: Update, context):
 
 # ==================== АДМИН: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
 async def delete_user_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    if not context.args:
-        await update.message.reply_text("⚠️ Формат: /delete_user [ID]\nПример: /delete_user 123456789")
-        return
-    try:
-        user_id = int(context.args[0])
-    except:
-        await update.message.reply_text("⚠️ ID должен быть числом!")
-        return
-    
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not context.args: return await update.message.reply_text("⚠️ Формат: /delete_user [ID]")
+    try: user_id = int(context.args[0])
+    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
     c.execute('SELECT first_name, full_name, group_name FROM users WHERE user_id = ?', (user_id,))
     user = c.fetchone()
     if not user:
         conn.close()
-        await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден в базе!")
-        return
-    
+        return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден в базе!")
     c.execute('DELETE FROM users WHERE user_id = ?', (user_id,))
     conn.commit()
     conn.close()
-    
-    await update.message.reply_text(
-        f"✅ Пользователь удален из базы!\n\n"
-        f"🆔 ID: {user_id}\n"
-        f"👤 Имя: {user[0]}\n"
-        f" ФИО: {user[1]}\n"
-        f"👥 Группа: {user[2]}\n\n"
-        f"️ Если он напишет /start снова — регистрация пройдет заново."
-    )
+    await update.message.reply_text(f"✅ Пользователь удален из базы!\n\n🆔 ID: {user_id}\n👤 Имя: {user[0]}\n👤 ФИО: {user[1]}\n👥 Группа: {user[2]}\n\n⚠️ Если он напишет /start снова — регистрация пройдет заново.")
 
 # ==================== АДМИН: АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ ====================
 async def active_users_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
     days = 7
     if context.args:
-        try:
-            days = int(context.args[0])
-        except:
-            pass
-    
+        try: days = int(context.args[0])
+        except: pass
     cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
-    
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
     c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE last_active >= ? ORDER BY last_active DESC LIMIT 50', (cutoff_date,))
     users = c.fetchall()
     conn.close()
-    
-    if not users:
-        await update.message.reply_text(f"📊 Нет активных пользователей за последние {days} дней.")
-        return
-    
+    if not users: return await update.message.reply_text(f"📊 Нет активных пользователей за последние {days} дней.")
     text = f"📊 АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (за {days} дней):\n\n"
     for uid, fname, full, grp, last in users:
-        text += f" `{uid}` | {full or fname} | {grp}\n"
-        text += f"   🕐 Последняя активность: {last}\n\n"
-    
+        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last}\n\n"
     await update.message.reply_text(text, parse_mode='Markdown')
 
 # ==================== АДМИН: НЕАКТИВНЫЕ ПОЛЬЗОВАТЕЛИ ====================
 async def inactive_users_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
     days = 30
     if context.args:
-        try:
-            days = int(context.args[0])
-        except:
-            pass
-    
+        try: days = int(context.args[0])
+        except: pass
     cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
-    
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
     c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE (last_active < ? OR last_active IS NULL) AND is_verified = 1 ORDER BY last_active ASC LIMIT 50', (cutoff_date,))
     users = c.fetchall()
     conn.close()
-    
-    if not users:
-        await update.message.reply_text(f"✅ Все пользователи активны за последние {days} дней!")
-        return
-    
+    if not users: return await update.message.reply_text(f"✅ Все пользователи активны за последние {days} дней!")
     text = f"😴 НЕАКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (не заходили {days}+ дней):\n\n"
     for uid, fname, full, grp, last in users:
-        text += f"🆔 `{uid}` | {full or fname} | {grp}\n"
-        text += f"   🕐 Последняя активность: {last or 'никогда'}\n\n"
-    
-    text += f"💡 Чтобы удалить: /delete_user [ID]"
+        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last or 'никогда'}\n\n"
+    text += "💡 Чтобы удалить: /delete_user [ID]"
     await update.message.reply_text(text, parse_mode='Markdown')
-
-# ==================== КОМАНДЫ ДЛЯ КНОПОК МЕНЮ ====================
-async def schedule_command(update: Update, context):
-    group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
-        return
-    conn = sqlite3.connect('college_bot.db')
-    c = conn.cursor()
-    c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") AND day = ? ORDER BY time', (group, get_day_name()))
-    schedule = c.fetchall()
-    conn.close()
-    if not schedule:
-        text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
-    else:
-        text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
-        for i, (time, subj, teach, room) in enumerate(schedule, 1):
-            text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def schedule_week_command(update: Update, context):
-    group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("️ Сначала выбери группу командой /setgroup")
-        return
-    conn = sqlite3.connect('college_bot.db')
-    c = conn.cursor()
-    c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY CASE day WHEN "Понедельник" THEN 1 WHEN "Вторник" THEN 2 WHEN "Среда" THEN 3 WHEN "Четверг" THEN 4 WHEN "Пятница" THEN 5 WHEN "Суббота" THEN 6 WHEN "Воскресенье" THEN 7 END, time', (group,))
-    schedule = c.fetchall()
-    conn.close()
-    if not schedule:
-        text = f"📅 Расписание для {group} пока не добавлено."
-    else:
-        text = f"📅 Расписание на неделю\n👥 {group}\n\n"
-        cur_day = None
-        for day, time, subj, teach, room in schedule:
-            if day != cur_day: text += f"\n📌 {day}:\n"; cur_day = day
-            text += f"  • {time} - {subj} ({teach}, ауд. {room})\n"
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def grades_command(update: Update, context):
-    await update.message.reply_text(" Оценок пока нет.", reply_markup=main_menu_keyboard())
-
-async def gpa_command(update: Update, context):
-    await update.message.reply_text(" Оценок пока нет.", reply_markup=main_menu_keyboard())
-
-async def teachers_command(update: Update, context):
-    await update.message.reply_text("‍🏫 Список преподавателей пока пуст.", reply_markup=main_menu_keyboard())
-
-async def exams_command(update: Update, context):
-    await update.message.reply_text("🎓 Экзаменов пока не запланировано.", reply_markup=main_menu_keyboard())
-
-async def news_command(update: Update, context):
-    await update.message.reply_text("📰 Новостей пока нет.", reply_markup=main_menu_keyboard())
-
-async def weather_command(update: Update, context):
-    try:
-        r = requests.get("https://api.open-meteo.com/v1/forecast?latitude=55.75&longitude=37.61&current_weather=true")
-        d = r.json()['current_weather']
-        text = f"🌤️ Погода в Москве\n🌡️ {d['temperature']}°C\n💨 Ветер: {d['windspeed']} км/ч"
-    except:
-        text = "❌ Не удалось получить погоду."
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def homework_command(update: Update, context):
-    group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
-        return
-    conn = sqlite3.connect('college_bot.db')
-    c = conn.cursor()
-    c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY created_at DESC', (group,))
-    hw = c.fetchall()
-    conn.close()
-    if not hw:
-        text = f" Домашних заданий для {group} пока нет!"
-    else:
-        text = f" Домашние задания\n👥 {group}\n\n"
-        for subj, task, dead in hw:
-            text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def contacts_command(update: Update, context):
-    text = (
-        "📍 Контакты Налогового колледжа\n\n"
-        "👩‍💼 Директор: Кузьминская Юлия Борисовна\n\n"
-        "🏢 Адрес: г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n"
-        "(м. Хорошево, м. Полежаевская)\n\n"
-        "🕒 Режим работы:\n"
-        "Пн-Пт: 09:00 - 19:30\n"
-        "Сб: 10:00 - 14:00\n"
-        "Вс: выходной\n\n"
-        "📞 Телефоны:\n"
-        "Приемная комиссия: +7 (495) 568-07-07\n"
-        "Секретарь: +7 (499) 191-00-69\n\n"
-        "🔗 Полезные ссылки:\n"
-        "🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n"
-        "💻 Личный кабинет абитуриента: https://lk-nk.ru\n"
-        "🎓 Дистанционное обучение: https://distant-nk.ru"
-    )
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def practice_command(update: Update, context):
-    text = (
-        "💼 Партнеры по практике\n\n"
-        "Наши студенты проходят практику в ведущих организациях:\n\n"
-        "🏛️ Федеральная налоговая служба (ФНС)\n"
-        "🏦 ПАО «Сбербанк»\n"
-        "🏦 ПАО «Московский кредитный банк»\n"
-        " ПАО «Банк УРАЛСИБ»\n"
-        "⚖️ Департамент труда и соцзащиты г. Москвы\n"
-        "🤝 Ассоциация налоговых консультантов\n"
-        " ООО «Международная консалтинговая группа»\n\n"
-        "📌 Полный список мест практики доступен в учебной части колледжа."
-    )
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def help_command(update: Update, context):
-    text = (
-        "🆘 Помощь\n\n"
-        "📱 Основные команды:\n"
-        "• /start - Главное меню\n"
-        "• /setgroup [ГРУППА] - Выбрать группу\n"
-        "• /schedule - Расписание на день\n"
-        "• /schedule_week - Расписание на неделю\n"
-        "• /homework - Домашние задания\n"
-        "• /grades - Оценки\n"
-        "• /gpa - Средний балл\n"
-        "• /teachers - Преподаватели\n"
-        "• /exams - Экзамены\n"
-        "• /news - Новости\n"
-        "• /weather - Погода\n"
-        "• /contacts - Контакты колледжа\n"
-        "• /practice - Практика\n"
-        "• /anon_chat - Анонимный чат\n\n"
-        "❓ Вопросы:\n"
-        "• Напиши свой вопрос, и он уйдет администратору\n\n"
-        "⚙️ Настройки:\n"
-        "• /setgroup - выбрать или изменить группу"
-    )
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def anon_chat_command(update: Update, context):
-    group = get_user_group(update.effective_user.id)
-    if not group:
-        text = "⚠️ Сначала выбери группу командой /setgroup\n\nБез группы анонимный чат не работает."
-        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-        return
-    context.user_data['waiting_for_anon'] = True
-    context.user_data['anon_recipient'] = 'all'
-    text = (
-        f"💬 Анонимный чат\n\n"
-        f"📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
-        f"👉 {ANON_CHANNEL_LINK}\n\n"
-        f"⚠️ ПРАВИЛА:\n"
-        f"• Только для учебы и конструктивных вопросов\n"
-        f"• За оскорбления, буллинг и спам — бан\n"
-        f"• Все сообщения проходят модерацию администратором\n\n"
-        f"Напиши своё сообщение следующим текстом.\n"
-        f"После одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n"
-        f"Чтобы отменить, нажми /start"
-    )
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 # ==================== ОТЛОЖЕННАЯ РАССЫЛКА ====================
 async def send_later_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("⛔ Только для админа!")
-
     if not update.message.reply_to_message:
         return await update.message.reply_text("⚠️ Сначала ответь на сообщение (текст, фото или видео), а потом напиши команду.")
-
     if len(context.args) < 2:
         return await update.message.reply_text("⚠️ Укажи дату и время! Пример: /send_later 31.08.2026 14:05")
-
+    
     date_str = context.args[0]
     time_str = context.args[1]
     datetime_str = f"{date_str} {time_str}"
-
     try:
         target_dt = datetime.datetime.strptime(datetime_str, "%d.%m.%Y %H:%M")
         target_dt = TIMEZONE.localize(target_dt)
     except ValueError:
         return await update.message.reply_text("⚠️ Неверный формат! Используй: /send_later ДД.ММ.ГГГГ ЧЧ:ММ")
-
+    
     now = datetime.datetime.now(TIMEZONE)
     if target_dt <= now:
         return await update.message.reply_text("⚠️ Время должно быть в будущем!")
-
+    
     delay_seconds = (target_dt - now).total_seconds()
-
     msg = update.message.reply_to_message
     text = msg.text or msg.caption or ""
     file_type = None
     file_id = None
-
     if msg.photo:
         file_type = 'photo'
         file_id = msg.photo[-1].file_id
@@ -1491,14 +1120,12 @@ async def send_later_command(update: Update, context):
 
     conn = sqlite3.connect('college_bot.db')
     c = conn.cursor()
-    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (?, ?, ?, ?, ?)',
-              (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
+    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (?, ?, ?, ?, ?)', (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
     msg_id = c.lastrowid
     conn.commit()
     conn.close()
 
     context.job_queue.run_once(send_scheduled_job, delay_seconds, data={'msg_id': msg_id})
-
     await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
 
 async def send_scheduled_job(context):
@@ -1510,34 +1137,27 @@ async def send_scheduled_job(context):
     c.execute('DELETE FROM scheduled_messages WHERE id = ?', (msg_id,))
     conn.commit()
     conn.close()
-
-    if not msg_data:
-        return
-
+    if not msg_data: return
+    
     text, file_type, file_id, caption = msg_data
     users = get_all_users()
-
     for user_data in users:
         user_id = user_data[0]
         try:
-            if file_type == 'photo':
-                await context.bot.send_photo(user_id, file_id, caption=caption or text)
-            elif file_type == 'video':
-                await context.bot.send_video(user_id, file_id, caption=caption or text)
-            elif file_type == 'document':
-                await context.bot.send_document(user_id, file_id, caption=caption or text)
-            else:
-                await context.bot.send_message(user_id, text=text)
+            if file_type == 'photo': await context.bot.send_photo(user_id, file_id, caption=caption or text)
+            elif file_type == 'video': await context.bot.send_video(user_id, file_id, caption=caption or text)
+            elif file_type == 'document': await context.bot.send_document(user_id, file_id, caption=caption or text)
+            else: await context.bot.send_message(user_id, text=text)
             await asyncio.sleep(0.05)
         except Exception as e:
             print(f"Ошибка отправки отложенного сообщения пользователю {user_id}: {e}")
-
     await context.bot.send_message(ADMIN_ID, f"✅ Отложенная рассылка ID {msg_id} успешно отправлена всем студентам!")
+
 # ==================== ЗАПУСК ====================
 def main():
     init_db()
     keep_alive()
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).job_queue(JobQueue()).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
@@ -1569,6 +1189,7 @@ def main():
     app.add_handler(CommandHandler("delete_user", delete_user_command))
     app.add_handler(CommandHandler("active_users", active_users_command))
     app.add_handler(CommandHandler("inactive_users", inactive_users_command))
+    app.add_handler(CommandHandler("send_later", send_later_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_registration_message))
     app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_message))
