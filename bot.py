@@ -1447,6 +1447,92 @@ async def anon_chat_command(update: Update, context):
     )
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
+# ==================== ОТЛОЖЕННАЯ РАССЫЛКА ====================
+async def send_later_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("⛔ Только для админа!")
+
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("⚠️ Сначала ответь на сообщение (текст, фото или видео), а потом напиши команду.")
+
+    if len(context.args) < 2:
+        return await update.message.reply_text("⚠️ Укажи дату и время! Пример: /send_later 31.08.2026 14:05")
+
+    date_str = context.args[0]
+    time_str = context.args[1]
+    datetime_str = f"{date_str} {time_str}"
+
+    try:
+        target_dt = datetime.datetime.strptime(datetime_str, "%d.%m.%Y %H:%M")
+        target_dt = TIMEZONE.localize(target_dt)
+    except ValueError:
+        return await update.message.reply_text("⚠️ Неверный формат! Используй: /send_later ДД.ММ.ГГГГ ЧЧ:ММ")
+
+    now = datetime.datetime.now(TIMEZONE)
+    if target_dt <= now:
+        return await update.message.reply_text("⚠️ Время должно быть в будущем!")
+
+    delay_seconds = (target_dt - now).total_seconds()
+
+    msg = update.message.reply_to_message
+    text = msg.text or msg.caption or ""
+    file_type = None
+    file_id = None
+
+    if msg.photo:
+        file_type = 'photo'
+        file_id = msg.photo[-1].file_id
+    elif msg.video:
+        file_type = 'video'
+        file_id = msg.video.file_id
+    elif msg.document:
+        file_type = 'document'
+        file_id = msg.document.file_id
+
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (?, ?, ?, ?, ?)',
+              (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
+    msg_id = c.lastrowid
+    conn.commit()
+    conn.close()
+
+    context.job_queue.run_once(send_scheduled_job, delay_seconds, data={'msg_id': msg_id})
+
+    await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
+
+async def send_scheduled_job(context):
+    msg_id = context.job.data['msg_id']
+    conn = sqlite3.connect('college_bot.db')
+    c = conn.cursor()
+    c.execute('SELECT text, file_type, file_id, caption FROM scheduled_messages WHERE id = ?', (msg_id,))
+    msg_data = c.fetchone()
+    c.execute('DELETE FROM scheduled_messages WHERE id = ?', (msg_id,))
+    conn.commit()
+    conn.close()
+
+    if not msg_data:
+        return
+
+    text, file_type, file_id, caption = msg_data
+    users = get_all_users()
+
+    for user_data in users:
+        user_id = user_data[0]
+        try:
+            if file_type == 'photo':
+                await context.bot.send_photo(user_id, file_id, caption=caption or text)
+            elif file_type == 'video':
+                await context.bot.send_video(user_id, file_id, caption=caption or text)
+            elif file_type == 'document':
+                await context.bot.send_document(user_id, file_id, caption=caption or text)
+            else:
+                await context.bot.send_message(user_id, text=text)
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            print(f"Ошибка отправки отложенного сообщения пользователю {user_id}: {e}")
+
+    await context.bot.send_message(ADMIN_ID, f"✅ Отложенная рассылка ID {msg_id} успешно отправлена всем студентам!")
 # ==================== ЗАПУСК ====================
 def main():
     init_db()
