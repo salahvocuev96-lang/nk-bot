@@ -902,7 +902,7 @@ async def handle_message(update: Update, context):
             print(f"❌ Не удалось отправить на модерацию: {e}")
         return
 
-        if context.user_data.get('waiting_for_question'):
+    if context.user_data.get('waiting_for_question'):
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
         c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)',
