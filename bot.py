@@ -902,16 +902,38 @@ async def handle_message(update: Update, context):
             print(f"❌ Не удалось отправить на модерацию: {e}")
         return
 
-    if context.user_data.get('waiting_for_question'):
+        if context.user_data.get('waiting_for_question'):
         conn = sqlite3.connect('college_bot.db')
         c = conn.cursor()
-        c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)', (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-        conn.commit(); conn.close()
+        c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)',
+                  (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+        conn.commit()
+        conn.close()
         context.user_data['waiting_for_question'] = False
-        await update.message.reply_text("✅ Вопрос отправлен админу!", reply_markup=main_menu_keyboard())
-        admin_msg = f"❓ Новый вопрос\n👤 {update.effective_user.first_name}\n💬 {text}"
-        try: await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
-        except: pass
+        
+        sender_username = update.effective_user.username or "нет"
+        user_link = f"tg://user?id={user_id}"
+        
+        admin_msg = (
+            f"❓ **Новый вопрос от студента**\n\n"
+            f"🆔 ID: `{user_id}`\n"
+            f"👤 Имя: {update.effective_user.first_name}\n"
+            f"🔗 Профиль: [{sender_username}]({user_link})\n"
+            f"👥 Группа: {get_user_group(user_id) or 'не указана'}\n\n"
+            f"💬 **Вопрос:**\n{text}\n\n"
+            f"💡 *Нажми на юзернейм выше, чтобы сразу открыть с ним личный чат!*"
+        )
+        
+        try: 
+            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode='Markdown')
+        except Exception as e:
+            print(f"❌ Не удалось отправить вопрос админу: {e}")
+            
+        await update.message.reply_text(
+            "✅ Вопрос отправлен админу!\n\n"
+            "Ожидайте ответа в личных сообщениях от администрации.", 
+            reply_markup=main_menu_keyboard()
+        )
         return
 
     if text.lower().startswith('/setgroup'):
