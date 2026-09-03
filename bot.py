@@ -41,25 +41,25 @@ def init_db():
         is_verified INTEGER DEFAULT 0,
         last_active TEXT DEFAULT NULL
     )''')
-    c.execute('CREATE TABLE IF NOT EXISTS schedule (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, day TEXT, time TEXT, subject TEXT, teacher TEXT, room TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS homework (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, subject TEXT, task TEXT, deadline TEXT, created_at TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS grades (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, subject TEXT, grade INTEGER, date TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS teachers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, subject TEXT, cabinet TEXT, email TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS news (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, date TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS exams (id INTEGER PRIMARY KEY AUTOINCREMENT, group_name TEXT, subject TEXT, date TEXT, time TEXT, room TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, question TEXT, is_anon INTEGER, date TEXT, status TEXT DEFAULT "new")')
-    c.execute('CREATE TABLE IF NOT EXISTS conspekts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, subject TEXT, title TEXT, date TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT, options TEXT, creator_id INTEGER, created_at TEXT, is_active INTEGER DEFAULT 1)')
-    c.execute('CREATE TABLE IF NOT EXISTS poll_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, poll_id INTEGER, user_id INTEGER, option_index INTEGER)')
-    c.execute('CREATE TABLE IF NOT EXISTS anon_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, first_name TEXT, username TEXT, group_name TEXT, message TEXT, recipient_type TEXT DEFAULT "all", status TEXT DEFAULT "pending", created_at TEXT, moderated_at TEXT, channel_message_id INTEGER)')
-    c.execute('CREATE TABLE IF NOT EXISTS scheduled_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, file_type TEXT, file_id TEXT, caption TEXT, send_at TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS schedule (id SERIAL PRIMARY KEY, group_name TEXT, day TEXT, time TEXT, subject TEXT, teacher TEXT, room TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS homework (id SERIAL PRIMARY KEY, group_name TEXT, subject TEXT, task TEXT, deadline TEXT, created_at TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS grades (id SERIAL PRIMARY KEY, user_id INTEGER, subject TEXT, grade INTEGER, date TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS teachers (id SERIAL PRIMARY KEY, name TEXT, subject TEXT, cabinet TEXT, email TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS news (id SERIAL PRIMARY KEY, title TEXT, content TEXT, date TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS exams (id SERIAL PRIMARY KEY, group_name TEXT, subject TEXT, date TEXT, time TEXT, room TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS questions (id SERIAL PRIMARY KEY, user_id INTEGER, question TEXT, is_anon INTEGER, date TEXT, status TEXT DEFAULT \'new\')')
+    c.execute('CREATE TABLE IF NOT EXISTS conspekts (id SERIAL PRIMARY KEY, user_id INTEGER, subject TEXT, title TEXT, date TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS polls (id SERIAL PRIMARY KEY, question TEXT, options TEXT, creator_id INTEGER, created_at TEXT, is_active INTEGER DEFAULT 1)')
+    c.execute('CREATE TABLE IF NOT EXISTS poll_votes (id SERIAL PRIMARY KEY, poll_id INTEGER, user_id INTEGER, option_index INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS anon_messages (id SERIAL PRIMARY KEY, user_id INTEGER, first_name TEXT, username TEXT, group_name TEXT, message TEXT, recipient_type TEXT DEFAULT \'all\', status TEXT DEFAULT \'pending\', created_at TEXT, moderated_at TEXT, channel_message_id INTEGER)')
+    c.execute('CREATE TABLE IF NOT EXISTS scheduled_messages (id SERIAL PRIMARY KEY, text TEXT, file_type TEXT, file_id TEXT, caption TEXT, send_at TEXT)')
     conn.commit()
     conn.close()
 
 def get_user_group(user_id):
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT group_name FROM users WHERE user_id = ? ORDER BY user_id DESC LIMIT 1', (user_id,))
+    c.execute('SELECT group_name FROM users WHERE user_id = %s ORDER BY user_id DESC LIMIT 1', (user_id,))
     result = c.fetchone()
     conn.close()
     return result[0] if result and result[0] else None
@@ -73,7 +73,7 @@ def get_day_name(day_num=None):
 def calculate_gpa(user_id):
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT AVG(grade) FROM grades WHERE user_id = ?', (user_id,))
+    c.execute('SELECT AVG(grade) FROM grades WHERE user_id = %s', (user_id,))
     result = c.fetchone()
     conn.close()
     return result[0] if result and result[0] else 0
@@ -89,7 +89,7 @@ def get_all_users():
 def get_users_by_group(group_name):
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT user_id, first_name FROM users WHERE group_name = ?', (group_name,))
+    c.execute('SELECT user_id, first_name FROM users WHERE group_name = %s', (group_name,))
     users = c.fetchall()
     conn.close()
     return users
@@ -135,9 +135,9 @@ def groups_keyboard():
 def admin_panel_keyboard():
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "pending"')
+    c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = \'pending\'')
     pending_count = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM questions WHERE status = "new"')
+    c.execute('SELECT COUNT(*) FROM questions WHERE status = \'new\'')
     questions_count = c.fetchone()[0]
     conn.close()
     moderation_text = f"📥 Модерация ({pending_count})" if pending_count > 0 else "📥 Модерация"
@@ -157,7 +157,7 @@ async def start(update: Update, context):
     user = update.effective_user
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT is_verified FROM users WHERE user_id = ?', (user.id,))
+    c.execute('SELECT is_verified FROM users WHERE user_id = %s', (user.id,))
     row = c.fetchone()
     conn.close()
     if not row or row[0] == 0:
@@ -270,9 +270,9 @@ async def create_poll_command(update: Update, context):
     options = context.args[1:]
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO polls (question, options, creator_id, created_at) VALUES (?, ?, ?, ?)',
+    c.execute('INSERT INTO polls (question, options, creator_id, created_at) VALUES (%s, %s, %s, %s) RETURNING id',
               (question, '|'.join(options), update.effective_user.id, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-    poll_id = c.lastrowid
+    poll_id = c.fetchone()[0]
     conn.commit()
     conn.close()
     keyboard = []
@@ -306,9 +306,9 @@ async def add_schedule_command(update: Update, context):
         return
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO schedule (group_name, day, time, subject, teacher, room) VALUES (?, ?, ?, ?, ?, ?)',
+    c.execute('INSERT INTO schedule (group_name, day, time, subject, teacher, room) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id',
               (group_name, valid_days[day_short.upper()], time, subject, teacher, room))
-    sid = c.lastrowid
+    sid = c.fetchone()[0]
     conn.commit()
     conn.close()
     await update.message.reply_text(f"✅ Пара добавлена! ID: {sid}\nДля удаления: /delete_schedule {sid}")
@@ -319,7 +319,7 @@ async def view_schedule_command(update: Update, context):
         return
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT id, group_name, day, time, subject, teacher, room FROM schedule ORDER BY group_name, CASE day WHEN "Понедельник" THEN 1 WHEN "Вторник" THEN 2 WHEN "Среда" THEN 3 WHEN "Четверг" THEN 4 WHEN "Пятница" THEN 5 WHEN "Суббота" THEN 6 WHEN "Воскресенье" THEN 7 END, time')
+    c.execute('SELECT id, group_name, day, time, subject, teacher, room FROM schedule ORDER BY group_name, CASE day WHEN \'Понедельник\' THEN 1 WHEN \'Вторник\' THEN 2 WHEN \'Среда\' THEN 3 WHEN \'Четверг\' THEN 4 WHEN \'Пятница\' THEN 5 WHEN \'Суббота\' THEN 6 WHEN \'Воскресенье\' THEN 7 END, time')
     schedule = c.fetchall()
     conn.close()
     if not schedule:
@@ -340,10 +340,10 @@ async def delete_schedule_command(update: Update, context):
     except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT group_name, day, time, subject FROM schedule WHERE id = ?', (sid,))
+    c.execute('SELECT group_name, day, time, subject FROM schedule WHERE id = %s', (sid,))
     res = c.fetchone()
     if not res: conn.close(); return await update.message.reply_text("⚠️ Не найдено!")
-    c.execute('DELETE FROM schedule WHERE id = ?', (sid,))
+    c.execute('DELETE FROM schedule WHERE id = %s', (sid,))
     conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Удалено: {res[0]} | {res[1]} {res[2]} - {res[3]}")
 
@@ -359,9 +359,9 @@ async def add_homework_command(update: Update, context):
         task = ' '.join(parts[:-2])
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO homework (group_name, subject, task, deadline, created_at) VALUES (?, ?, ?, ?, ?)',
+    c.execute('INSERT INTO homework (group_name, subject, task, deadline, created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id',
               (group_name, subject, task, deadline, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-    hid = c.lastrowid
+    hid = c.fetchone()[0]
     conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Домашка добавлена! ID: {hid}\nУдалить: /delete_homework {hid}")
 
@@ -386,10 +386,10 @@ async def delete_homework_command(update: Update, context):
     except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT group_name, subject, task FROM homework WHERE id = ?', (hid,))
+    c.execute('SELECT group_name, subject, task FROM homework WHERE id = %s', (hid,))
     res = c.fetchone()
     if not res: conn.close(); return await update.message.reply_text("⚠️ Не найдено!")
-    c.execute('DELETE FROM homework WHERE id = ?', (hid,))
+    c.execute('DELETE FROM homework WHERE id = %s', (hid,))
     conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Удалено: {res[0]} | {res[1]}: {res[2]}")
 
@@ -397,7 +397,7 @@ async def delete_homework_command(update: Update, context):
 async def publish_to_channel(context, anon_id):
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT group_name, message, recipient_type FROM anon_messages WHERE id = ?', (anon_id,))
+    c.execute('SELECT group_name, message, recipient_type FROM anon_messages WHERE id = %s', (anon_id,))
     anon = c.fetchone()
     conn.close()
     if not anon:
@@ -408,7 +408,7 @@ async def publish_to_channel(context, anon_id):
         msg = await context.bot.send_message(chat_id=ANON_CHANNEL_ID, text=channel_text)
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE anon_messages SET channel_message_id = ? WHERE id = ?', (msg.message_id, anon_id))
+        c.execute('UPDATE anon_messages SET channel_message_id = %s WHERE id = %s', (msg.message_id, anon_id))
         conn.commit()
         conn.close()
         return True, f"✅ Опубликовано в канале!"
@@ -443,7 +443,7 @@ async def button_handler(update: Update, context):
         user_id = query.from_user.id
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
+        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
         conn.commit()
         conn.close()
         await query.edit_message_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
@@ -456,13 +456,13 @@ async def button_handler(update: Update, context):
         else:
             conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
-            c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") AND day = ? ORDER BY time', (group, get_day_name()))
+            c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') AND day = %s ORDER BY time', (group, get_day_name()))
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
             else:
                 text = f"🗓️ Расписание на {get_day_name()}\n👥 {group}\n\n"
                 for i, (time, subj, teach, room) in enumerate(schedule, 1):
-                    text += f"{i}. {time} - {subj}\n   ‍🏫 {teach} |  {room}\n"
+                    text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
         
         keyboard = [
             [InlineKeyboardButton("🗓️ Показать на неделю", callback_data='schedule_week')],
@@ -478,7 +478,7 @@ async def button_handler(update: Update, context):
         else:
             conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
-            c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY CASE day WHEN "Понедельник" THEN 1 WHEN "Вторник" THEN 2 WHEN "Среда" THEN 3 WHEN "Четверг" THEN 4 WHEN "Пятница" THEN 5 WHEN "Суббота" THEN 6 WHEN "Воскресенье" THEN 7 END, time', (group,))
+            c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') ORDER BY CASE day WHEN \'Понедельник\' THEN 1 WHEN \'Вторник\' THEN 2 WHEN \'Среда\' THEN 3 WHEN \'Четверг\' THEN 4 WHEN \'Пятница\' THEN 5 WHEN \'Суббота\' THEN 6 WHEN \'Воскресенье\' THEN 7 END, time', (group,))
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 Расписание для {group} пока не добавлено."
             else:
@@ -497,7 +497,7 @@ async def button_handler(update: Update, context):
         else:
             conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
-            c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY created_at DESC', (group,))
+            c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') ORDER BY created_at DESC', (group,))
             hw = c.fetchall(); conn.close()
             if not hw: text = f"📝 Домашних заданий для {group} пока нет!"
             else:
@@ -528,14 +528,14 @@ async def button_handler(update: Update, context):
         anon_id = int(data.split('_')[2])
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE anon_messages SET status = "approved", moderated_at = ? WHERE id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
+        c.execute('UPDATE anon_messages SET status = \'approved\', moderated_at = %s WHERE id = %s', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
         conn.commit()
         conn.close()
         success, result_msg = await publish_to_channel(context, anon_id)
         await query.edit_message_text(f"{result_msg}\n\nID сообщения: {anon_id}", reply_markup=back_button())
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT user_id FROM anon_messages WHERE id = ?', (anon_id,))
+        c.execute('SELECT user_id FROM anon_messages WHERE id = %s', (anon_id,))
         anon = c.fetchone()
         conn.close()
         if anon:
@@ -551,13 +551,13 @@ async def button_handler(update: Update, context):
         anon_id = int(data.split('_')[2])
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE anon_messages SET status = "rejected", moderated_at = ? WHERE id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
+        c.execute('UPDATE anon_messages SET status = \'rejected\', moderated_at = %s WHERE id = %s', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
         conn.commit()
         conn.close()
         await query.edit_message_text(f"❌ Сообщение ID {anon_id} отклонено.", reply_markup=back_button())
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT user_id FROM anon_messages WHERE id = ?', (anon_id,))
+        c.execute('SELECT user_id FROM anon_messages WHERE id = %s', (anon_id,))
         anon = c.fetchone()
         conn.close()
         if anon:
@@ -581,7 +581,7 @@ async def button_handler(update: Update, context):
         await query.answer()
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT id, first_name, username, group_name, message, recipient_type, created_at FROM anon_messages WHERE status = "pending" ORDER BY created_at DESC')
+        c.execute('SELECT id, first_name, username, group_name, message, recipient_type, created_at FROM anon_messages WHERE status = \'pending\' ORDER BY created_at DESC')
         pending = c.fetchall()
         conn.close()
         if not pending:
@@ -606,7 +606,7 @@ async def button_handler(update: Update, context):
         await query.answer()
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT id, first_name, group_name, message, recipient_type, status, created_at, moderated_at FROM anon_messages WHERE status != "pending" ORDER BY moderated_at DESC LIMIT 20')
+        c.execute('SELECT id, first_name, group_name, message, recipient_type, status, created_at, moderated_at FROM anon_messages WHERE status != \'pending\' ORDER BY moderated_at DESC LIMIT 20')
         history = c.fetchall()
         conn.close()
         if not history:
@@ -629,13 +629,13 @@ async def button_handler(update: Update, context):
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT COUNT(*) FROM users'); total_users = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "pending"'); pending_anon = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "approved"'); approved_anon = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = "rejected"'); rejected_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = \'pending\''); pending_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = \'approved\''); approved_anon = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM anon_messages WHERE status = \'rejected\''); rejected_anon = c.fetchone()[0]
         total_anon = pending_anon + approved_anon + rejected_anon
         c.execute('SELECT COUNT(*) FROM schedule'); total_schedule = c.fetchone()[0]
         c.execute('SELECT COUNT(*) FROM homework'); total_homework = c.fetchone()[0]
-        c.execute('SELECT COUNT(*) FROM questions WHERE status = "new"'); new_questions = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM questions WHERE status = \'new\''); new_questions = c.fetchone()[0]
         c.execute('SELECT COUNT(*) FROM questions'); total_questions = c.fetchone()[0]
         conn.close()
         text = (f"📊 Статистика бота\n\n👥 Пользователи:\n   Всего зарегистрировано: {total_users}\n\n💬 Анонимный чат:\n   Всего сообщений: {total_anon}\n   ✅ Одобрено: {approved_anon}\n   ❌ Отклонено: {rejected_anon}\n   ⏳ На модерации: {pending_anon}\n\n📅 Расписание:\n   Всего пар добавлено: {total_schedule}\n\n📝 Домашние задания:\n   Всего домашек: {total_homework}\n\n❓ Вопросы:\n   Всего вопросов: {total_questions}\n   🆕 Новых (непрочитанных): {new_questions}")
@@ -687,7 +687,7 @@ async def button_handler(update: Update, context):
         await query.answer()
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT id, user_id, question, date FROM questions WHERE status = "new" ORDER BY date DESC LIMIT 10')
+        c.execute('SELECT id, user_id, question, date FROM questions WHERE status = \'new\' ORDER BY date DESC LIMIT 10')
         questions = c.fetchall()
         conn.close()
         if not questions:
@@ -697,7 +697,7 @@ async def button_handler(update: Update, context):
             for q_id, user_id, question, date in questions:
                 conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
                 c = conn.cursor()
-                c.execute('SELECT first_name, group_name FROM users WHERE user_id = ?', (user_id,))
+                c.execute('SELECT first_name, group_name FROM users WHERE user_id = %s', (user_id,))
                 user = c.fetchone()
                 conn.close()
                 user_name = user[0] if user else "Неизвестно"
@@ -713,12 +713,12 @@ async def button_handler(update: Update, context):
         user_id = query.from_user.id
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT id FROM poll_votes WHERE poll_id = ? AND user_id = ?', (poll_id, user_id))
+        c.execute('SELECT id FROM poll_votes WHERE poll_id = %s AND user_id = %s', (poll_id, user_id))
         if c.fetchone():
             await query.answer("⚠️ Ты уже голосовал в этом опросе!", show_alert=True)
             conn.close()
             return
-        c.execute('INSERT INTO poll_votes (poll_id, user_id, option_index) VALUES (?, ?, ?)', (poll_id, user_id, option_index))
+        c.execute('INSERT INTO poll_votes (poll_id, user_id, option_index) VALUES (%s, %s, %s)', (poll_id, user_id, option_index))
         conn.commit()
         conn.close()
         await query.answer("✅ Твой голос принят!", show_alert=True)
@@ -731,7 +731,7 @@ async def button_handler(update: Update, context):
         poll_id = data.split('_')[2]
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT question, options FROM polls WHERE id = ?', (poll_id,))
+        c.execute('SELECT question, options FROM polls WHERE id = %s', (poll_id,))
         poll = c.fetchone()
         conn.close()
         if not poll:
@@ -763,7 +763,7 @@ async def button_handler(update: Update, context):
         poll_id = data.split('_')[1]
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT question, options FROM polls WHERE id = ?', (poll_id,))
+        c.execute('SELECT question, options FROM polls WHERE id = %s', (poll_id,))
         poll = c.fetchone()
         if not poll:
             await query.answer("Опрос не найден", show_alert=True)
@@ -771,7 +771,7 @@ async def button_handler(update: Update, context):
             return
         question, options_str = poll
         options = options_str.split('|')
-        c.execute('SELECT option_index, COUNT(*) FROM poll_votes WHERE poll_id = ? GROUP BY option_index', (poll_id,))
+        c.execute('SELECT option_index, COUNT(*) FROM poll_votes WHERE poll_id = %s GROUP BY option_index', (poll_id,))
         votes = dict(c.fetchall())
         total_votes = sum(votes.values())
         conn.close()
@@ -843,7 +843,7 @@ async def handle_registration_message(update: Update, context):
             conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
             c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified)
-                         VALUES (?, ?, ?, ?, ?, ?, 1)
+                         VALUES (%s, %s, %s, %s, %s, %s, 1)
                          ON CONFLICT(user_id) DO UPDATE SET
                             full_name=excluded.full_name, phone=excluded.phone,
                             group_name=excluded.group_name, is_verified=1''',
@@ -875,7 +875,7 @@ async def handle_message(update: Update, context):
 
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('UPDATE users SET last_active = ? WHERE user_id = ?', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
+    c.execute('UPDATE users SET last_active = %s WHERE user_id = %s', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
     conn.commit()
     conn.close()
 
@@ -891,9 +891,13 @@ async def handle_message(update: Update, context):
             return
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('INSERT INTO anon_messages (user_id, first_name, username, group_name, message, recipient_type, status, created_at) VALUES (?, ?, ?, ?, ?, "all", "pending", ?)',
+        c.execute('INSERT INTO anon_messages (user_id, first_name, username, group_name, message, recipient_type, status, created_at) VALUES (%s, %s, %s, %s, %s, \'all\', \'pending\', %s)',
                   (user_id, update.effective_user.first_name, update.effective_user.username or "нет", group, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-        anon_id = c.lastrowid
+        anon_id = c.lastrowid # В psycopg2 для простого insert без RETURNING можно использовать cursor.lastrowid в некоторых версиях, но лучше перестраховаться. Оставим как было, если сработает, или поправим ниже.
+        # Исправление для надежности:
+        c.execute('INSERT INTO anon_messages (user_id, first_name, username, group_name, message, recipient_type, status, created_at) VALUES (%s, %s, %s, %s, %s, \'all\', \'pending\', %s) RETURNING id',
+                  (user_id, update.effective_user.first_name, update.effective_user.username or "нет", group, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+        anon_id = c.fetchone()[0]
         conn.commit()
         conn.close()
         await update.message.reply_text(f"✅ Твоё сообщение отправлено на модерацию!\n\n📤 Получатели: 🌍 Все студенты колледжа\n🆔 ID сообщения: {anon_id}\n\nПосле одобрения администратором оно будет опубликовано в канале анонимок.\n\n⚠️ Если сообщение нарушает правила — оно будет отклонено.", reply_markup=main_menu_keyboard())
@@ -910,7 +914,7 @@ async def handle_message(update: Update, context):
     if context.user_data.get('waiting_for_question'):
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('INSERT INTO questions (user_id, question, date) VALUES (?, ?, ?)',
+        c.execute('INSERT INTO questions (user_id, question, date) VALUES (%s, %s, %s)',
                   (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
         conn.commit()
         conn.close()
@@ -947,7 +951,7 @@ async def handle_message(update: Update, context):
         group_name = parts[1].strip()
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
+        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
         conn.commit(); conn.close()
         await update.message.reply_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
         return
@@ -986,14 +990,14 @@ async def poll_results_command(update: Update, context):
     except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT question, options, created_at FROM polls WHERE id = ?', (poll_id,))
+    c.execute('SELECT question, options, created_at FROM polls WHERE id = %s', (poll_id,))
     poll = c.fetchone()
     if not poll:
         conn.close()
         return await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
     question, options_str, created_at = poll
     options = options_str.split('|')
-    c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = ? ORDER BY pv.option_index', (poll_id,))
+    c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = %s ORDER BY pv.option_index', (poll_id,))
     votes = c.fetchall()
     vote_counts = {}
     for i in range(len(options)): vote_counts[i] = 0
@@ -1031,7 +1035,7 @@ async def poll_history_command(update: Update, context):
         status = "✅ Активно" if active == 1 else "🔴 Завершено"
         conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = ?', (pid,))
+        c.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = %s', (pid,))
         vcount = c.fetchone()[0]
         conn.close()
         text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n📅 {created} | 👥 {vcount} голосов\nВарианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\nДетали: /poll_results {pid}\n\n" + "-" * 40 + "\n\n"
@@ -1045,8 +1049,8 @@ async def setgroup_command(update: Update, context):
     if group_name not in GROUPS: return await update.message.reply_text(f"⚠️ Группа '{group_name}' не найдена!")
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO users (user_id, first_name, username) VALUES (?, ?, ?)', (user_id, update.effective_user.first_name, update.effective_user.username))
-    c.execute('UPDATE users SET group_name = ? WHERE user_id = ?', (group_name, user_id))
+    c.execute('INSERT INTO users (user_id, first_name, username) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO NOTHING', (user_id, update.effective_user.first_name, update.effective_user.username))
+    c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
     conn.commit()
     conn.close()
     await update.message.reply_text(f"✅ Отлично! Твоя группа теперь: {group_name}", reply_markup=main_menu_keyboard())
@@ -1059,12 +1063,12 @@ async def delete_user_command(update: Update, context):
     except: return await update.message.reply_text("⚠️ ID должен быть числом!")
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT first_name, full_name, group_name FROM users WHERE user_id = ?', (user_id,))
+    c.execute('SELECT first_name, full_name, group_name FROM users WHERE user_id = %s', (user_id,))
     user = c.fetchone()
     if not user:
         conn.close()
         return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден в базе!")
-    c.execute('DELETE FROM users WHERE user_id = ?', (user_id,))
+    c.execute('DELETE FROM users WHERE user_id = %s', (user_id,))
     conn.commit()
     conn.close()
     await update.message.reply_text(f"✅ Пользователь удален из базы!\n\n🆔 ID: {user_id}\n👤 Имя: {user[0]}\n👤 ФИО: {user[1]}\n👥 Группа: {user[2]}\n\n⚠️ Если он напишет /start снова — регистрация пройдет заново.")
@@ -1079,7 +1083,7 @@ async def active_users_command(update: Update, context):
     cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE last_active >= ? ORDER BY last_active DESC LIMIT 50', (cutoff_date,))
+    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE last_active >= %s ORDER BY last_active DESC LIMIT 50', (cutoff_date,))
     users = c.fetchall()
     conn.close()
     if not users: return await update.message.reply_text(f"📊 Нет активных пользователей за последние {days} дней.")
@@ -1098,7 +1102,7 @@ async def inactive_users_command(update: Update, context):
     cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE (last_active < ? OR last_active IS NULL) AND is_verified = 1 ORDER BY last_active ASC LIMIT 50', (cutoff_date,))
+    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE (last_active < %s OR last_active IS NULL) AND is_verified = 1 ORDER BY last_active ASC LIMIT 50', (cutoff_date,))
     users = c.fetchall()
     conn.close()
     if not users: return await update.message.reply_text(f"✅ Все пользователи активны за последние {days} дней!")
@@ -1147,8 +1151,8 @@ async def send_later_command(update: Update, context):
 
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (?, ?, ?, ?, ?)', (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
-    msg_id = c.lastrowid
+    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (%s, %s, %s, %s, %s) RETURNING id', (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
+    msg_id = c.fetchone()[0]
     conn.commit()
     conn.close()
 
@@ -1159,9 +1163,9 @@ async def send_scheduled_job(context):
     msg_id = context.job.data['msg_id']
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT text, file_type, file_id, caption FROM scheduled_messages WHERE id = ?', (msg_id,))
+    c.execute('SELECT text, file_type, file_id, caption FROM scheduled_messages WHERE id = %s', (msg_id,))
     msg_data = c.fetchone()
-    c.execute('DELETE FROM scheduled_messages WHERE id = ?', (msg_id,))
+    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
     conn.commit()
     conn.close()
     if not msg_data: return
@@ -1188,7 +1192,7 @@ async def schedule_command(update: Update, context):
         return
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") AND day = ? ORDER BY time', (group, get_day_name()))
+    c.execute('SELECT time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') AND day = %s ORDER BY time', (group, get_day_name()))
     schedule = c.fetchall()
     conn.close()
     if not schedule:
@@ -1206,7 +1210,7 @@ async def schedule_week_command(update: Update, context):
         return
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY CASE day WHEN "Понедельник" THEN 1 WHEN "Вторник" THEN 2 WHEN "Среда" THEN 3 WHEN "Четверг" THEN 4 WHEN "Пятница" THEN 5 WHEN "Суббота" THEN 6 WHEN "Воскресенье" THEN 7 END, time', (group,))
+    c.execute('SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') ORDER BY CASE day WHEN \'Понедельник\' THEN 1 WHEN \'Вторник\' THEN 2 WHEN \'Среда\' THEN 3 WHEN \'Четверг\' THEN 4 WHEN \'Пятница\' THEN 5 WHEN \'Суббота\' THEN 6 WHEN \'Воскресенье\' THEN 7 END, time', (group,))
     schedule = c.fetchall()
     conn.close()
     if not schedule:
@@ -1250,7 +1254,7 @@ async def homework_command(update: Update, context):
         return
     conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = ? OR group_name = "ОБЩЕЕ") ORDER BY created_at DESC', (group,))
+    c.execute('SELECT subject, task, deadline FROM homework WHERE (group_name = %s OR group_name = \'ОБЩЕЕ\') ORDER BY created_at DESC', (group,))
     hw = c.fetchall()
     conn.close()
     if not hw:
