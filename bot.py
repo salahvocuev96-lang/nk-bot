@@ -96,8 +96,7 @@ def get_users_by_group(group_name):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📅 Расписание на день", callback_data='schedule'),
-         InlineKeyboardButton("📅 Расписание на неделю", callback_data='schedule_week')],
+        [InlineKeyboardButton(" Расписание", callback_data='schedule')],
         [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
         [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
@@ -452,7 +451,7 @@ async def button_handler(update: Update, context):
     elif data == 'schedule':
         await query.answer()
         group = get_user_group(query.from_user.id)
-        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
+        if not group: text = "️ Сначала укажи группу в Настройках!"
         else:
             conn = sqlite3.connect('college_bot.db')
             c = conn.cursor()
@@ -460,10 +459,15 @@ async def button_handler(update: Update, context):
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
             else:
-                text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
+                text = f" Расписание на {get_day_name()}\n👥 {group}\n\n"
                 for i, (time, subj, teach, room) in enumerate(schedule, 1):
-                    text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
-        await query.edit_message_text(text, reply_markup=back_button())
+                    text += f"{i}. {time} - {subj}\n   ‍🏫 {teach} |  {room}\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🗓️ Показать на неделю", callback_data='schedule_week')],
+            [InlineKeyboardButton("◀️ Назад в меню", callback_data='back_to_menu')]
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     elif data == 'schedule_week':
