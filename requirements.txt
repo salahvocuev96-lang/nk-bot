@@ -2,3 +2,4 @@ python-telegram-bot[job-queue]
 pytz
 requests
 flask
+psycopg2-binary==2.9.9
