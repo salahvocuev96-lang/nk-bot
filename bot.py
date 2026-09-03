@@ -96,7 +96,7 @@ def get_users_by_group(group_name):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard():
     keyboard = [
-        [InlineKeyboardButton(" Расписание", callback_data='schedule')],
+        [InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
         [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
         [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
@@ -459,7 +459,7 @@ async def button_handler(update: Update, context):
             schedule = c.fetchall(); conn.close()
             if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
             else:
-                text = f" Расписание на {get_day_name()}\n👥 {group}\n\n"
+                text = f"🗓️ Расписание на {get_day_name()}\n👥 {group}\n\n"
                 for i, (time, subj, teach, room) in enumerate(schedule, 1):
                     text += f"{i}. {time} - {subj}\n   ‍🏫 {teach} |  {room}\n"
         
