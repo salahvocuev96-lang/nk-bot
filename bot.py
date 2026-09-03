@@ -31,8 +31,22 @@ GROUPS = [
 def init_db():
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
+    
+    # Изменяем тип user_id на BIGINT во всех таблицах (если они уже существуют)
+    try:
+        c.execute('ALTER TABLE users ALTER COLUMN user_id TYPE BIGINT')
+        c.execute('ALTER TABLE grades ALTER COLUMN user_id TYPE BIGINT')
+        c.execute('ALTER TABLE questions ALTER COLUMN user_id TYPE BIGINT')
+        c.execute('ALTER TABLE conspekts ALTER COLUMN user_id TYPE BIGINT')
+        c.execute('ALTER TABLE anon_messages ALTER COLUMN user_id TYPE BIGINT')
+        c.execute('ALTER TABLE poll_votes ALTER COLUMN user_id TYPE BIGINT')
+        conn.commit()
+    except:
+        conn.rollback()  # Если таблицы еще не созданы, игнорируем ошибку
+    
+    # Создаем таблицы с правильным типом BIGINT
     c.execute('''CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY, 
+        user_id BIGINT PRIMARY KEY, 
         first_name TEXT, 
         username TEXT, 
         group_name TEXT, 
@@ -43,15 +57,15 @@ def init_db():
     )''')
     c.execute('CREATE TABLE IF NOT EXISTS schedule (id SERIAL PRIMARY KEY, group_name TEXT, day TEXT, time TEXT, subject TEXT, teacher TEXT, room TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS homework (id SERIAL PRIMARY KEY, group_name TEXT, subject TEXT, task TEXT, deadline TEXT, created_at TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS grades (id SERIAL PRIMARY KEY, user_id INTEGER, subject TEXT, grade INTEGER, date TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS grades (id SERIAL PRIMARY KEY, user_id BIGINT, subject TEXT, grade INTEGER, date TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS teachers (id SERIAL PRIMARY KEY, name TEXT, subject TEXT, cabinet TEXT, email TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS news (id SERIAL PRIMARY KEY, title TEXT, content TEXT, date TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS exams (id SERIAL PRIMARY KEY, group_name TEXT, subject TEXT, date TEXT, time TEXT, room TEXT)')
-    c.execute("CREATE TABLE IF NOT EXISTS questions (id SERIAL PRIMARY KEY, user_id INTEGER, question TEXT, is_anon INTEGER, date TEXT, status TEXT DEFAULT 'new')")
-    c.execute('CREATE TABLE IF NOT EXISTS conspekts (id SERIAL PRIMARY KEY, user_id INTEGER, subject TEXT, title TEXT, date TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS polls (id SERIAL PRIMARY KEY, question TEXT, options TEXT, creator_id INTEGER, created_at TEXT, is_active INTEGER DEFAULT 1)')
-    c.execute('CREATE TABLE IF NOT EXISTS poll_votes (id SERIAL PRIMARY KEY, poll_id INTEGER, user_id INTEGER, option_index INTEGER)')
-    c.execute("CREATE TABLE IF NOT EXISTS anon_messages (id SERIAL PRIMARY KEY, user_id INTEGER, first_name TEXT, username TEXT, group_name TEXT, message TEXT, recipient_type TEXT DEFAULT 'all', status TEXT DEFAULT 'pending', created_at TEXT, moderated_at TEXT, channel_message_id INTEGER)")
+    c.execute("CREATE TABLE IF NOT EXISTS questions (id SERIAL PRIMARY KEY, user_id BIGINT, question TEXT, is_anon INTEGER, date TEXT, status TEXT DEFAULT 'new')")
+    c.execute('CREATE TABLE IF NOT EXISTS conspekts (id SERIAL PRIMARY KEY, user_id BIGINT, subject TEXT, title TEXT, date TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS polls (id SERIAL PRIMARY KEY, question TEXT, options TEXT, creator_id BIGINT, created_at TEXT, is_active INTEGER DEFAULT 1)')
+    c.execute('CREATE TABLE IF NOT EXISTS poll_votes (id SERIAL PRIMARY KEY, poll_id INTEGER, user_id BIGINT, option_index INTEGER)')
+    c.execute("CREATE TABLE IF NOT EXISTS anon_messages (id SERIAL PRIMARY KEY, user_id BIGINT, first_name TEXT, username TEXT, group_name TEXT, message TEXT, recipient_type TEXT DEFAULT 'all', status TEXT DEFAULT 'pending', created_at TEXT, moderated_at TEXT, channel_message_id INTEGER)")
     c.execute('CREATE TABLE IF NOT EXISTS scheduled_messages (id SERIAL PRIMARY KEY, text TEXT, file_type TEXT, file_id TEXT, caption TEXT, send_at TEXT)')
     conn.commit()
     conn.close()
