@@ -870,24 +870,33 @@ async def handle_registration_message(update: Update, context):
 
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
 async def handle_message(update: Update, context):
+    # Если пользователь в процессе регистрации - НЕ обрабатываем здесь
+    if context.user_data.get('reg_step') in ['waiting_full_name', 'waiting_group', 'waiting_phone']:
+        return
+    
+    # Если это контакт и пользователь не в регистрации - игнорируем
+    if update.message.contact:
+        return
+    
     user_id = update.effective_user.id
     text = update.message.text
+    
+    if not text:
+        return
 
+    # Обновляем активность только для зарегистрированных пользователей
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     c.execute('UPDATE users SET last_active = %s WHERE user_id = %s', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
     conn.commit()
     conn.close()
 
-    if context.user_data.get('reg_step') in ['waiting_full_name', 'waiting_group', 'waiting_phone']:
-        return
-
     if context.user_data.get('waiting_for_anon'):
         context.user_data['waiting_for_anon'] = False
         context.user_data['anon_recipient'] = None
         group = get_user_group(user_id)
         if not group:
-            await update.message.reply_text("⚠️ Ошибка: группа не найдена.", reply_markup=main_menu_keyboard())
+            await update.message.reply_text("️ Ошибка: группа не найдена.", reply_markup=main_menu_keyboard())
             return
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
@@ -896,9 +905,9 @@ async def handle_message(update: Update, context):
         anon_id = c.fetchone()[0]
         conn.commit()
         conn.close()
-        await update.message.reply_text(f"✅ Твоё сообщение отправлено на модерацию!\n\n📤 Получатели: 🌍 Все студенты колледжа\n🆔 ID сообщения: {anon_id}\n\nПосле одобрения администратором оно будет опубликовано в канале анонимок.\n\n⚠️ Если сообщение нарушает правила — оно будет отклонено.", reply_markup=main_menu_keyboard())
+        await update.message.reply_text(f"✅ Твоё сообщение отправлено на модерацию!\n\n📤 Получатели: 🌍 Все студенты колледжа\n ID сообщения: {anon_id}\n\nПосле одобрения администратором оно будет опубликовано в канале анонимок.\n\n️ Если сообщение нарушает правила — оно будет отклонено.", reply_markup=main_menu_keyboard())
         sender_username = update.effective_user.username or "нет"
-        admin_msg = (f"📥 НОВОЕ СООБЩЕНИЕ НА МОДЕРАЦИЮ\n\n🆔 ID: {anon_id}\n👤 От: {update.effective_user.first_name}\n📱 Username: @{sender_username}\n👥 Группа: {group}\n📤 Кому: 🌍 Всем студентам\n📅 Время: {datetime.datetime.now(TIMEZONE).strftime('%H:%M')}\n\n💬 Сообщение:\n{text}\n\nВыбери действие:")
+        admin_msg = (f"📥 НОВОЕ СООБЩЕНИЕ НА МОДЕРАЦИЮ\n\n🆔 ID: {anon_id}\n👤 От: {update.effective_user.first_name}\n📱 Username: @{sender_username}\n👥 Группа: {group}\n📤 Кому: 🌍 Всем студентам\n Время: {datetime.datetime.now(TIMEZONE).strftime('%H:%M')}\n\n💬 Сообщение:\n{text}\n\nВыбери действие:")
         keyboard = [[InlineKeyboardButton("✅ Одобрить и опубликовать", callback_data=f'approve_anon_{anon_id}')], [InlineKeyboardButton("❌ Отклонить", callback_data=f'reject_anon_{anon_id}')]]
         try:
             await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -924,7 +933,7 @@ async def handle_message(update: Update, context):
             f"🆔 ID: `{user_id}`\n"
             f"👤 Имя: {update.effective_user.first_name}\n"
             f"🔗 Профиль: [{sender_username}]({user_link})\n"
-            f"👥 Группа: {get_user_group(user_id) or 'не указана'}\n\n"
+            f" Группа: {get_user_group(user_id) or 'не указана'}\n\n"
             f"💬 **Вопрос:**\n{text}\n\n"
             f"💡 *Нажми на юзернейм выше, чтобы сразу открыть с ним личный чат!*"
         )
@@ -932,7 +941,7 @@ async def handle_message(update: Update, context):
         try: 
             await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode='Markdown')
         except Exception as e:
-            print(f"❌ Не удалось отправить вопрос админу: {e}")
+            print(f" Не удалось отправить вопрос админу: {e}")
             
         await update.message.reply_text(
             "✅ Вопрос отправлен админу!\n\n"
@@ -958,7 +967,7 @@ async def handle_message(update: Update, context):
     elif 'спасибо' in text_lower:
         await update.message.reply_text("😊 Пожалуйста!")
     else:
-        await update.message.reply_text("🤔 Используй кнопки или /help", reply_markup=main_menu_keyboard())
+        await update.message.reply_text(" Используй кнопки или /help", reply_markup=main_menu_keyboard())
 
 # ==================== FLASK СЕРВЕР (ДЛЯ RENDER) ====================
 web_app = Flask('')
