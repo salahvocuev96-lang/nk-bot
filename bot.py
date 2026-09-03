@@ -835,11 +835,28 @@ async def button_handler(update: Update, context):
 # ==================== ОБРАБОТЧИК РЕГИСТРАЦИИ ====================
 async def handle_registration_message(update: Update, context):
     user_id = update.effective_user.id
+    print(f"🔍 DEBUG: Сработал handle_registration_message. Контакт: {bool(update.message.contact)}, Текст: {update.message.text}")
+    print(f"🔍 DEBUG: Текущий reg_step = {context.user_data.get('reg_step')}")
+    
+    # 1. ОБРАБОТКА КОНТАКТА
     if update.message.contact:
-        if context.user_data.get('reg_step') == 'waiting_phone':
+        print("🔍 DEBUG: Это сообщение с контактом!")
+        if context.user_data.get('reg_step') == 'waiting_phone' or not context.user_data.get('reg_step'):
             phone = update.message.contact.phone_number
             group_name = context.user_data.get('reg_group')
             full_name = context.user_data.get('reg_full_name')
+            
+            print(f"🔍 DEBUG: Phone={phone}, Group={group_name}, Name={full_name}")
+            
+            if not group_name or not full_name:
+                await update.message.reply_text(
+                    "⚠️ Произошла ошибка: данные о имени или группе потеряны.\n"
+                    "Пожалуйста, начните регистрацию заново с команды /start", 
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                context.user_data.clear()
+                return
+
             conn = psycopg.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
             c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified)
@@ -850,10 +867,22 @@ async def handle_registration_message(update: Update, context):
                       (user_id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
             conn.commit()
             conn.close()
+            
             context.user_data.clear()
-            await update.message.reply_text(f"✅ Регистрация завершена!\n\n👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\nТеперь тебе доступны все функции!", reply_markup=ReplyKeyboardRemove())
+            
+            await update.message.reply_text(
+                f"✅ Регистрация завершена!\n\n"
+                f"👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\n"
+                f"Теперь тебе доступны все функции!", 
+                reply_markup=ReplyKeyboardRemove()
+            )
             await update.message.reply_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
-            log_text = (f"🆕 **Новая регистрация!**\n\n🆔 ID пользователя: `{user_id}`\n👤 ФИО: {full_name}\n📞 Телефон: {phone}\n👥 Группа: {group_name}\n")
+            
+            log_text = (f"🆕 **Новая регистрация!**\n\n"
+                        f"🆔 ID пользователя: `{user_id}`\n"
+                        f" ФИО: {full_name}\n"
+                        f"📞 Телефон: {phone}\n"
+                        f"👥 Группа: {group_name}\n")
             if update.effective_user.username:
                 log_text += f"🔗 Юзернейм: @{update.effective_user.username}\n"
             try:
@@ -861,12 +890,17 @@ async def handle_registration_message(update: Update, context):
             except Exception as e:
                 print(f"❌ Ошибка отправки в лог-канал: {e}")
             return
+    
+    # 2. ОБРАБОТКА ФИО (текст)
     if context.user_data.get('reg_step') == 'waiting_full_name':
         context.user_data['reg_full_name'] = update.message.text.strip()
         context.user_data['reg_step'] = 'waiting_group'
         await update.message.reply_text("✅ ФИО принято!\n\nШаг 2: Выбери свою группу из списка ниже:", reply_markup=groups_keyboard())
         return
+        
+    # 3. Если ничего не подошло, передаем в обычный обработчик сообщений
     await handle_message(update, context)
+
 
 # ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
 async def handle_message(update: Update, context):
