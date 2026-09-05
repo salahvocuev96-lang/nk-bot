@@ -674,7 +674,8 @@ async def button_handler(update: Update, context):
             "📨 Рассылка:\n"
             "• Ответь на сообщение командой /broadcast\n"
             "• /broadcast_cancel - отменить рассылку\n"
-            "• /send_later ДД.ММ.ГГГГ ЧЧ:ММ - отложенная рассылка\n\n"
+            • /send_later ДД.ММ.ГГГГ ЧЧ:ММ - отложенная рассылка
+            • /cancel_send [ID] - отменить запланированную рассылку
             "🗳️ Голосование:\n"
             "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
             "• /poll_history - история всех голосований\n"
