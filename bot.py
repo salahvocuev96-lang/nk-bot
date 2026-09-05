@@ -1212,11 +1212,10 @@ async def send_later_command(update: Update, context):
     context.job_queue.run_once(send_scheduled_job, delay_seconds, data={'msg_id': msg_id})
     await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
 
-async def send_scheduled_job(context):
-    # ==================== ОТМЕНА ЗАПЛАНИРОВАННОЙ РАССЫЛКИ ====================
+# ==================== ОТМЕНА ЗАПЛАНИРОВАННОЙ РАССЫЛКИ ====================
 async def cancel_send_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text(" Только для админа!")
+        return await update.message.reply_text("⛔ Только для админа!")
     
     if not context.args:
         return await update.message.reply_text("⚠️ Формат: /cancel_send [ID]\nПример: /cancel_send 5")
@@ -1229,7 +1228,6 @@ async def cancel_send_command(update: Update, context):
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     
-    # Проверяем, есть ли такое сообщение в базе
     c.execute('SELECT text, send_at FROM scheduled_messages WHERE id = %s', (msg_id,))
     msg_data = c.fetchone()
 
@@ -1237,12 +1235,13 @@ async def cancel_send_command(update: Update, context):
         conn.close()
         return await update.message.reply_text(f"❌ Запланированное сообщение с ID {msg_id} не найдено или уже было отправлено!")
 
-    # Удаляем сообщение из базы, чтобы бот его не отправил
     c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
     conn.commit()
     conn.close()
 
     await update.message.reply_text(f"✅ Запланированная рассылка ID {msg_id} успешно отменена!\n\nСообщение не будет отправлено студентам.")
+
+async def send_scheduled_job(context):
     msg_id = context.job.data['msg_id']
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
