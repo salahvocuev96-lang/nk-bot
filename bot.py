@@ -1213,6 +1213,36 @@ async def send_later_command(update: Update, context):
     await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
 
 async def send_scheduled_job(context):
+    # ==================== ОТМЕНА ЗАПЛАНИРОВАННОЙ РАССЫЛКИ ====================
+async def cancel_send_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text(" Только для админа!")
+    
+    if not context.args:
+        return await update.message.reply_text("⚠️ Формат: /cancel_send [ID]\nПример: /cancel_send 5")
+    
+    try:
+        msg_id = int(context.args[0])
+    except ValueError:
+        return await update.message.reply_text("⚠️ ID должен быть числом!")
+
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    
+    # Проверяем, есть ли такое сообщение в базе
+    c.execute('SELECT text, send_at FROM scheduled_messages WHERE id = %s', (msg_id,))
+    msg_data = c.fetchone()
+
+    if not msg_data:
+        conn.close()
+        return await update.message.reply_text(f"❌ Запланированное сообщение с ID {msg_id} не найдено или уже было отправлено!")
+
+    # Удаляем сообщение из базы, чтобы бот его не отправил
+    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
+    conn.commit()
+    conn.close()
+
+    await update.message.reply_text(f"✅ Запланированная рассылка ID {msg_id} успешно отменена!\n\nСообщение не будет отправлено студентам.")
     msg_id = context.job.data['msg_id']
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
@@ -1437,6 +1467,7 @@ def main():
     app.add_handler(CommandHandler("active_users", active_users_command))
     app.add_handler(CommandHandler("inactive_users", inactive_users_command))
     app.add_handler(CommandHandler("send_later", send_later_command))
+    app.add_handler(CommandHandler("cancel_send", cancel_send_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_registration_message))
     app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_message))
