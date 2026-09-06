@@ -1,4 +1,6 @@
 import os
+import csv
+import tempfile
 import psycopg
 import requests
 import datetime
@@ -1108,6 +1110,44 @@ async def setgroup_command(update: Update, context):
     conn.commit()
     conn.close()
     await update.message.reply_text(f"✅ Отлично! Твоя группа теперь: {group_name}", reply_markup=main_menu_keyboard())
+# ==================== ЭКСПОРТ БАЗЫ ДАННЫХ В CSV ====================
+async def export_users_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("⛔ Только для админа!")
+    
+    await update.message.reply_text(" Формирую файл с базой данных... Это займет пару секунд.")
+    
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT user_id, first_name, username, group_name, full_name, phone, is_verified, last_active FROM users ORDER BY group_name')
+    users = c.fetchall()
+    conn.close()
+    
+    if not users:
+        return await update.message.reply_text("⚠️ База данных пуста. Нечего экспортировать.")
+
+    # Создаем временный CSV файл в безопасной папке Render
+    file_path = '/tmp/students_export.csv'
+    
+    # utf-8-sig нужен, чтобы Excel правильно читал русский язык
+    with open(file_path, 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        # Заголовки таблицы
+        writer.writerow(['Telegram ID', 'Имя', 'Username', 'Группа', 'ФИО', 'Телефон', 'Верифицирован (1=Да)', 'Последняя активность'])
+        # Записываем данные
+        for u in users:
+            writer.writerow(u)
+            
+    # Отправляем файл в Telegram
+    with open(file_path, 'rb') as f:
+        await update.message.reply_document(
+            document=f, 
+            filename='База_студентов_NK_College.csv', 
+            caption=f"✅ Готово! Экспортировано {len(users)} студентов.\n\nОткройте файл в Excel или Google Таблицах."
+        )
+        
+    # Удаляем временный файл, чтобы не засорять память
+    os.remove(file_path)
 
 # ==================== АДМИН: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
 async def delete_user_command(update: Update, context):
@@ -1463,6 +1503,7 @@ def main():
     app.add_handler(CommandHandler("add_homework", add_homework_command))
     app.add_handler(CommandHandler("view_homework", view_homework_command))
     app.add_handler(CommandHandler("delete_homework", delete_homework_command))
+    app.add_handler(CommandHandler("export_users", export_users_command))
     app.add_handler(CommandHandler("delete_user", delete_user_command))
     app.add_handler(CommandHandler("active_users", active_users_command))
     app.add_handler(CommandHandler("inactive_users", inactive_users_command))
