@@ -683,6 +683,7 @@ async def button_handler(update: Update, context):
             "• /poll_history - история всех голосований\n"
             "• /poll_results [ID] - узнать, кто проголосовал\n\n"
             "👥 Управление пользователями:\n"
+            "• /export_users - выгрузить базу студентов в Excel (CSV)\n"
             "• /delete_user [ID] - удалить пользователя из базы\n"
             "• /active_users [дней] - кто был активен (по умолч. 7 дней)\n"
             "• /inactive_users [дней] - кто не заходил (по умолч. 30 дней)\n\n"
