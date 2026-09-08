@@ -113,6 +113,7 @@ def get_users_by_group(group_name):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard():
     keyboard = [
+        [InlineKeyboardButton("👤 Мой профиль", callback_data='profile')],
         [InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
         [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
@@ -122,7 +123,7 @@ def main_menu_keyboard():
          InlineKeyboardButton("🌤️ Погода", callback_data='weather')],
         [InlineKeyboardButton("📈 Посещаемость", callback_data='attendance'),
          InlineKeyboardButton("🗺️ Аудитории", callback_data='rooms')],
-        [InlineKeyboardButton("💬 Анонимный чат", callback_data='anon_chat'),
+        [InlineKeyboardButton(" Анонимный чат", callback_data='anon_chat'),
          InlineKeyboardButton("📢 Канал анонимок", url=ANON_CHANNEL_LINK)],
         [InlineKeyboardButton("❓ Вопрос админу", callback_data='question'),
          InlineKeyboardButton("📍 Контакты", callback_data='contacts_info')],
@@ -803,6 +804,35 @@ async def button_handler(update: Update, context):
         await query.edit_message_text(text, reply_markup=back_button())
         return
 
+    elif data == 'profile':
+        await query.answer()
+        user_id = query.from_user.id
+        conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+        c = conn.cursor()
+        c.execute('SELECT first_name, username, group_name, full_name, phone, is_verified, last_active FROM users WHERE user_id = %s', (user_id,))
+        user = c.fetchone()
+        conn.close()
+        
+        if not user:
+            text = "⚠️ Ты не зарегистрирован в системе.\n\nНапиши /start, чтобы пройти регистрацию."
+        else:
+            first_name, username, group_name, full_name, phone, is_verified, last_active = user
+            status = "✅ Подтвержден" if is_verified == 1 else "⏳ Ожидает подтверждения"
+            
+            text = (
+                f"👤 **Твой профиль**\n\n"
+                f" **Имя:** {first_name}\n"
+                f"🔗 **Username:** @{username or 'не указан'}\n"
+                f"👥 **Группа:** {group_name or 'не указана'}\n"
+                f"📝 **ФИО:** {full_name or 'не указано'}\n"
+                f"📞 **Телефон:** {phone or 'не указан'}\n"
+                f"🔐 **Статус:** {status}\n"
+                f"🕐 **Последняя активность:** {last_active or 'никогда'}\n\n"
+                f" Чтобы изменить данные, напиши администратору через кнопку '❓ Вопрос админу'."
+            )
+        
+        await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
+        return
     elif data == 'contacts_info':
         await query.answer()
         text = ("📍 **Контакты Налогового колледжа**\n\n👩‍💼 **Директор:** Кузьминская Юлия Борисовна\n\n🏢 **Адрес:** г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n(м. Хорошево, м. Полежаевская)\n\n🕒 **Режим работы:**\nПн-Пт: 09:00 - 19:30\nСб: 10:00 - 14:00\nВс: выходной\n\n📞 **Телефоны:**\nПриемная комиссия: +7 (495) 568-07-07\nСекретарь: +7 (499) 191-00-69\n\n🔗 **Полезные ссылки:**\n🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n💻 Личный кабинет абитуриента: https://lk-nk.ru\n🎓 Дистанционное обучение: https://distant-nk.ru")
@@ -1424,6 +1454,33 @@ async def practice_command(update: Update, context):
     )
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
+async def profile_command(update: Update, context):
+    user_id = update.effective_user.id
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT first_name, username, group_name, full_name, phone, is_verified, last_active FROM users WHERE user_id = %s', (user_id,))
+    user = c.fetchone()
+    conn.close()
+    
+    if not user:
+        text = "️ Ты не зарегистрирован в системе.\n\nНапиши /start, чтобы пройти регистрацию."
+    else:
+        first_name, username, group_name, full_name, phone, is_verified, last_active = user
+        status = "✅ Подтвержден" if is_verified == 1 else "⏳ Ожидает подтверждения"
+        
+        text = (
+            f"👤 **Твой профиль**\n\n"
+            f"📛 **Имя:** {first_name}\n"
+            f" **Username:** @{username or 'не указан'}\n"
+            f"👥 **Группа:** {group_name or 'не указана'}\n"
+            f"📝 **ФИО:** {full_name or 'не указано'}\n"
+            f"📞 **Телефон:** {phone or 'не указан'}\n"
+            f"🔐 **Статус:** {status}\n"
+            f"🕐 **Последняя активность:** {last_active or 'никогда'}\n\n"
+            f"💡 Чтобы изменить данные, напиши администратору через команду /anon_chat."
+        )
+    
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
 async def help_command(update: Update, context):
     text = (
         "🆘 Помощь\n\n"
@@ -1497,6 +1554,7 @@ def main():
     app.add_handler(CommandHandler("contacts", contacts_command))
     app.add_handler(CommandHandler("practice", practice_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("anon_chat", anon_chat_command))
     app.add_handler(CommandHandler("add_schedule", add_schedule_command))
     app.add_handler(CommandHandler("view_schedule", view_schedule_command))
