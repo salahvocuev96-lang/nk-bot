@@ -113,8 +113,8 @@ def get_users_by_group(group_name):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard():
     keyboard = [
-        [InlineKeyboardButton("👤 Мой профиль", callback_data='profile')],
-        [InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
+        [InlineKeyboardButton("👤 Мой профиль", callback_data='profile'),
+         InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
         [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
          InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
         [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
