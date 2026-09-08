@@ -1578,7 +1578,6 @@ async def profile_command(update: Update, context):
     
     await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
 # ==================== ЗАГРУЗКА РАСПИСАНИЯ ИЗ CSV ====================
-# ==================== ЗАГРУЗКА РАСПИСАНИЯ ИЗ CSV ====================
 async def upload_schedule_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("⛔ Только для админа!")
