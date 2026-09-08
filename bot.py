@@ -1588,8 +1588,7 @@ async def upload_schedule_command(update: Update, context):
 
     if not doc:
         return await update.message.reply_text(
-            "⚠️ Нужно прикрепить файл к команде или ответить на файл командой /upload_schedule.\n\n"
-            "ВАЖНО: Файл должен быть в формате .csv (НЕ .xlsx!)"
+            "⚠️ Нужно прикрепить файл к команде или ответить на файл командой /upload_schedule."
         )
     
     await update.message.reply_text("📥 Читаю файл и очищаю старое расписание... Подожди пару секунд.")
@@ -1616,12 +1615,13 @@ async def upload_schedule_command(update: Update, context):
                 # Очищаем названия столбцов от случайных пробелов
                 clean_row = {k.strip(): v for k, v in row.items()}
                 try:
-                    group = clean_row.get('Группа', '').strip()
-                    day = clean_row.get('День', '').strip()
-                    time = clean_row.get('Время', '').strip()
-                    subject = clean_row.get('Предмет', '').strip()
-                    teacher = clean_row.get('Преподаватель', '').strip()
-                    room = clean_row.get('Аудитория', '').strip()
+                    # Используем (x or ''), чтобы бот не ломался на пустых ячейках
+                    group = (clean_row.get('Группа') or '').strip()
+                    day = (clean_row.get('День') or '').strip()
+                    time = (clean_row.get('Время') or '').strip()
+                    subject = (clean_row.get('Предмет') or '').strip()
+                    teacher = (clean_row.get('Преподаватель') or '').strip()
+                    room = (clean_row.get('Аудитория') or '').strip()
                     
                     if group and day and time and subject:
                         c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
@@ -1635,13 +1635,13 @@ async def upload_schedule_command(update: Update, context):
         conn.commit()
         conn.close()
         
-        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n❌ Ошибок: {errors}")
+        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n Ошибок: {errors}")
         
     except Exception as e:
         print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ЗАГРУЗКИ: {e}")
-        await update.message.reply_text(f"❌ Ошибка при загрузке: {e}\n\n💡 Убедись, что ты отправил именно .csv файл, а не .xlsx!")
+        await update.message.reply_text(f"❌ Ошибка при загрузке: {e}")
     
-    # Удаляем временный файл, чтобы не засорять память
+    # Удаляем временный файл
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
