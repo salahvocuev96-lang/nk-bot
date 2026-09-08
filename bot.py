@@ -1582,7 +1582,7 @@ async def upload_schedule_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("⛔ Только для админа!")
     
-    # Ищем файл: либо он прикреплён к команде, либо мы ответили на файл командой
+    # Ищем файл: либо в самом сообщении, либо в сообщении, на которое ответили
     doc = update.message.document
     if not doc and update.message.reply_to_message:
         doc = update.message.reply_to_message.document
@@ -1590,67 +1590,65 @@ async def upload_schedule_command(update: Update, context):
     if not doc:
         return await update.message.reply_text(
             "⚠️ Нужно прикрепить файл к команде или ответить на файл командой /upload_schedule.\n\n"
-            "Файл должен быть в формате CSV со столбцами: Группа, День, Время, Предмет, Преподаватель, Аудитория"
+            "ВАЖНО: Файл должен быть в формате .csv (НЕ .xlsx!)"
         )
     
-    # Скачиваем файл
-    file = await context.bot.get_file(doc.file_id)
-    file_path = '/tmp/schedule_upload.csv'
-    await file.download_to_drive(file_path)
-    
-    await update.message.reply_text("📥 Читаю файл...")
-    
-    # Читаем CSV и загружаем в базу
-    import csv
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    
-    # Очищаем старое расписание (опционально - можно закомментировать если хочешь добавлять, а не заменять)
-    c.execute('DELETE FROM schedule')
-    conn.commit()
-    
-    count = 0
-    errors = 0
+    await update.message.reply_text("📥 Читаю файл и очищаю старое расписание... Подожди пару секунд.")
     
     try:
+        # Скачиваем файл во временную папку
+        file = await context.bot.get_file(doc.file_id)
+        file_path = '/tmp/schedule_upload.csv'
+        await file.download_to_drive(file_path)
+        
+        # Подключаемся к базе и очищаем старое расписание
+        conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+        c = conn.cursor()
+        c.execute('DELETE FROM schedule')
+        conn.commit()
+        
+        count = 0
+        errors = 0
+        
+        # Читаем CSV файл
         with open(file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
+                # Очищаем названия столбцов от случайных пробелов
+                clean_row = {k.strip(): v for k, v in row.items()}
                 try:
-                    group = row.get('Группа', '').strip()
-                    day = row.get('День', '').strip()
-                    time = row.get('Время', '').strip()
-                    subject = row.get('Предмет', '').strip()
-                    teacher = row.get('Преподаватель', '').strip()
-                    room = row.get('Аудитория', '').strip()
+                    group = clean_row.get('Группа', '').strip()
+                    day = clean_row.get('День', '').strip()
+                    time = clean_row.get('Время', '').strip()
+                    subject = clean_row.get('Предмет', '').strip()
+                    teacher = clean_row.get('Преподаватель', '').strip()
+                    room = clean_row.get('Аудитория', '').strip()
                     
                     if group and day and time and subject:
                         c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
-                                     VALUES (%s, %s, %s, %s, %s, %s)''',
+                                     VALUES (%s, %s, %s, %s, %s, %s)''', 
                                   (group, day, time, subject, teacher, room))
                         count += 1
                 except Exception as e:
                     errors += 1
-                    print(f"Ошибка в строке: {e}")
+                    print(f"⚠️ Ошибка в строке: {e}")
         
         conn.commit()
         conn.close()
         
-        await update.message.reply_text(
-            f"✅ Расписание успешно загружено!\n\n"
-            f"📚 Добавлено пар: {count}\n"
-            f"❌ Ошибок: {errors}\n\n"
-            f"Теперь студенты могут смотреть расписание командой /schedule"
-        )
+        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n❌ Ошибок: {errors}")
         
     except Exception as e:
-        conn.close()
-        await update.message.reply_text(f"❌ Ошибка при чтении файла: {e}")
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ЗАГРУЗКИ: {e}")
+        await update.message.reply_text(f"❌ Ошибка при загрузке: {e}\n\n💡 Убедись, что ты отправил именно .csv файл, а не .xlsx!")
     
-    # Удаляем временный файл
-    import os
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    # Удаляем временный файл, чтобы не засорять память
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except:
+        pass
+
 async def help_command(update: Update, context):
     text = (
         "🆘 Помощь\n\n"
