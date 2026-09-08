@@ -1581,7 +1581,6 @@ async def upload_schedule_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("⛔ Только для админа!")
     
-    # Ищем файл: либо в самом сообщении, либо в сообщении, на которое ответили
     doc = update.message.document
     if not doc and update.message.reply_to_message:
         doc = update.message.reply_to_message.document
@@ -1594,12 +1593,10 @@ async def upload_schedule_command(update: Update, context):
     await update.message.reply_text("📥 Читаю файл и очищаю старое расписание... Подожди пару секунд.")
     
     try:
-        # Скачиваем файл во временную папку
         file = await context.bot.get_file(doc.file_id)
         file_path = '/tmp/schedule_upload.csv'
         await file.download_to_drive(file_path)
         
-        # Подключаемся к базе и очищаем старое расписание
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('DELETE FROM schedule')
@@ -1608,20 +1605,17 @@ async def upload_schedule_command(update: Update, context):
         count = 0
         errors = 0
         
-        # Читаем CSV файл
         with open(file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Очищаем названия столбцов от случайных пробелов
-                clean_row = {k.strip(): v for k, v in row.items()}
                 try:
-                    # Используем (x or ''), чтобы бот не ломался на пустых ячейках
-                    group = (clean_row.get('Группа') or '').strip()
-                    day = (clean_row.get('День') or '').strip()
-                    time = (clean_row.get('Время') or '').strip()
-                    subject = (clean_row.get('Предмет') or '').strip()
-                    teacher = (clean_row.get('Преподаватель') or '').strip()
-                    room = (clean_row.get('Аудитория') or '').strip()
+                    # str() и or '' гарантируют, что .strip() сработает даже если значение None
+                    group = str(row.get('Группа') or '').strip()
+                    day = str(row.get('День') or '').strip()
+                    time = str(row.get('Время') or '').strip()
+                    subject = str(row.get('Предмет') or '').strip()
+                    teacher = str(row.get('Преподаватель') or '').strip()
+                    room = str(row.get('Аудитория') or '').strip()
                     
                     if group and day and time and subject:
                         c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
@@ -1630,18 +1624,17 @@ async def upload_schedule_command(update: Update, context):
                         count += 1
                 except Exception as e:
                     errors += 1
-                    print(f"⚠️ Ошибка в строке: {e}")
+                    print(f"⚠️ Ошибка в строке: {e} | Данные: {row}")
         
         conn.commit()
         conn.close()
         
-        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n Ошибок: {errors}")
+        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n❌ Пропущено пустых строк: {errors}")
         
     except Exception as e:
         print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ЗАГРУЗКИ: {e}")
         await update.message.reply_text(f"❌ Ошибка при загрузке: {e}")
     
-    # Удаляем временный файл
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
