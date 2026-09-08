@@ -34,7 +34,6 @@ def init_db():
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     
-    # Изменяем тип user_id на BIGINT во всех таблицах (если они уже существуют)
     try:
         c.execute('ALTER TABLE users ALTER COLUMN user_id TYPE BIGINT')
         c.execute('ALTER TABLE grades ALTER COLUMN user_id TYPE BIGINT')
@@ -44,19 +43,11 @@ def init_db():
         c.execute('ALTER TABLE poll_votes ALTER COLUMN user_id TYPE BIGINT')
         conn.commit()
     except:
-        conn.rollback()  # Если таблицы еще не созданы, игнорируем ошибку
+        conn.rollback()
     
-    # Создаем таблицы с правильным типом BIGINT
     c.execute('''CREATE TABLE IF NOT EXISTS users (
-        user_id BIGINT PRIMARY KEY, 
-        first_name TEXT, 
-        username TEXT, 
-        group_name TEXT, 
-        full_name TEXT DEFAULT NULL, 
-        phone TEXT DEFAULT NULL, 
-        is_verified INTEGER DEFAULT 0,
-        last_active TEXT DEFAULT NULL
-    )''')
+        user_id BIGINT PRIMARY KEY, first_name TEXT, username TEXT, group_name TEXT, 
+        full_name TEXT DEFAULT NULL, phone TEXT DEFAULT NULL, is_verified INTEGER DEFAULT 0, last_active TEXT DEFAULT NULL)''')
     c.execute('CREATE TABLE IF NOT EXISTS schedule (id SERIAL PRIMARY KEY, group_name TEXT, day TEXT, time TEXT, subject TEXT, teacher TEXT, room TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS homework (id SERIAL PRIMARY KEY, group_name TEXT, subject TEXT, task TEXT, deadline TEXT, created_at TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS grades (id SERIAL PRIMARY KEY, user_id BIGINT, subject TEXT, grade INTEGER, date TEXT)')
@@ -113,28 +104,19 @@ def get_users_by_group(group_name):
 # ==================== КЛАВИАТУРЫ ====================
 def main_menu_keyboard():
     keyboard = [
-        [InlineKeyboardButton("👤 Мой профиль", callback_data='profile'),
-         InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
-        [InlineKeyboardButton("📊 Оценки", callback_data='grades'),
-         InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
-        [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'),
-         InlineKeyboardButton("🎓 Экзамены", callback_data='exams')],
-        [InlineKeyboardButton("📰 Новости", callback_data='news'),
-         InlineKeyboardButton("🌤️ Погода", callback_data='weather')],
-        [InlineKeyboardButton("📈 Посещаемость", callback_data='attendance'),
-         InlineKeyboardButton("🗺️ Аудитории", callback_data='rooms')],
-        [InlineKeyboardButton(" Анонимный чат", callback_data='anon_chat'),
-         InlineKeyboardButton("📢 Канал анонимок", url=ANON_CHANNEL_LINK)],
-        [InlineKeyboardButton("❓ Вопрос админу", callback_data='question'),
-         InlineKeyboardButton("📍 Контакты", callback_data='contacts_info')],
-        [InlineKeyboardButton("💼 Практика", callback_data='practice_info'),
-         InlineKeyboardButton("🆘 Помощь", callback_data='help')]
+        [InlineKeyboardButton("👤 Мой профиль", callback_data='profile'), InlineKeyboardButton("🗓️ Расписание", callback_data='schedule')],
+        [InlineKeyboardButton("📊 Оценки", callback_data='grades'), InlineKeyboardButton("🧮 GPA", callback_data='gpa')],
+        [InlineKeyboardButton("👨‍🏫 Преподаватели", callback_data='teachers'), InlineKeyboardButton("🎓 Экзамены", callback_data='exams')],
+        [InlineKeyboardButton("📰 Новости", callback_data='news'), InlineKeyboardButton("🌤️ Погода", callback_data='weather')],
+        [InlineKeyboardButton("📈 Посещаемость", callback_data='attendance'), InlineKeyboardButton("🗺️ Аудитории", callback_data='rooms')],
+        [InlineKeyboardButton("💬 Анонимный чат", callback_data='anon_chat'), InlineKeyboardButton("📢 Канал анонимок", url=ANON_CHANNEL_LINK)],
+        [InlineKeyboardButton("❓ Вопрос админу", callback_data='question'), InlineKeyboardButton("📍 Контакты", callback_data='contacts_info')],
+        [InlineKeyboardButton("💼 Практика", callback_data='practice_info'), InlineKeyboardButton("🆘 Помощь", callback_data='help')]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def back_button():
-    keyboard = [[InlineKeyboardButton("◀️ Назад в меню", callback_data='back_to_menu')]]
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад в меню", callback_data='back_to_menu')]])
 
 def groups_keyboard():
     keyboard = []
@@ -144,8 +126,7 @@ def groups_keyboard():
         if len(row) == 2:
             keyboard.append(row)
             row = []
-    if row:
-        keyboard.append(row)
+    if row: keyboard.append(row)
     keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data='back_to_menu')])
     return InlineKeyboardMarkup(keyboard)
 
@@ -169,7 +150,7 @@ def admin_panel_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ==================== КОМАНДА /start ====================
+# ==================== ОСНОВНЫЕ КОМАНДЫ ====================
 async def start(update: Update, context):
     user = update.effective_user
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
@@ -179,169 +160,218 @@ async def start(update: Update, context):
     conn.close()
     if not row or row[0] == 0:
         context.user_data['reg_step'] = 'waiting_full_name'
-        text = (
-            f"👋 Привет, {user.first_name}!\n\n"
-            f"Для доступа к боту {COLLEGE_NAME} нужна быстрая регистрация.\n\n"
-            f"Шаг 1: Напиши свои **ФИО** (полностью, как в журнале)."
-        )
+        text = f"👋 Привет, {user.first_name}!\n\nДля доступа к боту {COLLEGE_NAME} нужна быстрая регистрация.\n\nШаг 1: Напиши свои **ФИО** (полностью, как в журнале)."
         await update.message.reply_text(text, parse_mode='Markdown')
         return
     text = f"👋 Привет, {user.first_name}!\n\nДобро пожаловать в бота {COLLEGE_NAME}!"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
-# ==================== АДМИН-КОМАНДА ====================
 async def admin_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Доступ запрещен!")
-        return
-    text = "👨‍💼 Админ-панель\n\nВыбери раздел:"
-    await update.message.reply_text(text, reply_markup=admin_panel_keyboard())
+        return await update.message.reply_text("⛔ Доступ запрещен!")
+    await update.message.reply_text("👨‍💼 Админ-панель\n\nВыбери раздел:", reply_markup=admin_panel_keyboard())
 
-# ==================== BROADCAST ====================
-async def broadcast_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    if not update.message.reply_to_message:
-        await update.message.reply_text("⚠️ Формат: ответь на сообщение командой /broadcast")
-        return
-    reply_msg = update.message.reply_to_message
-    users = get_all_users()
-    if not users:
-        await update.message.reply_text("⚠️ В базе нет пользователей!")
-        return
-    await update.message.reply_text(f"📨 Начинаю рассылку {len(users)} пользователям...")
-    success = 0
-    failed = 0
-    for user_data in users:
-        user_id = user_data[0]
-        user_name = user_data[1]
-        try:
-            if reply_msg.photo:
-                photo_file_id = reply_msg.photo[-1].file_id
-                caption = reply_msg.caption if reply_msg.caption else ""
-                await context.bot.send_photo(chat_id=user_id, photo=photo_file_id, caption=caption)
-            elif reply_msg.video:
-                video_file_id = reply_msg.video.file_id
-                caption = reply_msg.caption if reply_msg.caption else ""
-                await context.bot.send_video(chat_id=user_id, video=video_file_id, caption=caption)
-            elif reply_msg.document:
-                doc_file_id = reply_msg.document.file_id
-                caption = reply_msg.caption if reply_msg.caption else ""
-                await context.bot.send_document(chat_id=user_id, document=doc_file_id, caption=caption)
-            elif reply_msg.audio:
-                audio_file_id = reply_msg.audio.file_id
-                caption = reply_msg.caption if reply_msg.caption else ""
-                await context.bot.send_audio(chat_id=user_id, audio=audio_file_id, caption=caption)
-            elif reply_msg.voice:
-                voice_file_id = reply_msg.voice.file_id
-                await context.bot.send_voice(chat_id=user_id, voice=voice_file_id)
-            elif reply_msg.animation:
-                animation_file_id = reply_msg.animation.file_id
-                caption = reply_msg.caption if reply_msg.caption else ""
-                await context.bot.send_animation(chat_id=user_id, animation=animation_file_id, caption=caption)
-            elif reply_msg.text:
-                await context.bot.send_message(chat_id=user_id, text=reply_msg.text)
-            else:
-                await context.bot.send_message(chat_id=user_id, text="📢 Объявление от администрации")
-            success += 1
-            await asyncio.sleep(0.05)
-        except Exception as e:
-            failed += 1
-            print(f"❌ Ошибка отправки пользователю {user_id} ({user_name}): {e}")
-    await update.message.reply_text(f"✅ Рассылка завершена!\n\n📨 Отправлено: {success}\n❌ Ошибок: {failed}\n👥 Всего пользователей: {len(users)}")
-
-# ==================== ОТМЕНА BROADCAST ====================
-async def broadcast_cancel_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    users = get_all_users()
-    if not users:
-        await update.message.reply_text("⚠️ В базе нет пользователей!")
-        return
-    await update.message.reply_text(f"📨 Начинаю отмену рассылки {len(users)} пользователям...")
-    success = 0
-    failed = 0
-    cancel_text = "⚠️ **ПРЕДЫДУЩЕЕ ОБЪЯВЛЕНИЕ ОТМЕНЕНО**\n\nПросим игнорировать предыдущее сообщение.\nПриносим извинения за неудобства."
-    for user_data in users:
-        user_id = user_data[0]
-        try:
-            await context.bot.send_message(chat_id=user_id, text=cancel_text, parse_mode='Markdown')
-            success += 1
-            await asyncio.sleep(0.05)
-        except Exception as e:
-            failed += 1
-            print(f"❌ Ошибка отмены пользователю {user_id}: {e}")
-    await update.message.reply_text(f"✅ Отмена рассылки завершена!\n\n📨 Отправлено: {success}\n❌ Ошибок: {failed}\n👥 Всего пользователей: {len(users)}")
-
-# ==================== СОЗДАНИЕ ГОЛОСОВАНИЯ ====================
-async def create_poll_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    if len(context.args) < 3:
-        await update.message.reply_text("⚠️ Формат: /create_poll Вопрос Вариант1 Вариант2 ...")
-        return
-    question = context.args[0]
-    options = context.args[1:]
+async def profile_command(update: Update, context):
+    user_id = update.effective_user.id
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO polls (question, options, creator_id, created_at) VALUES (%s, %s, %s, %s) RETURNING id',
-              (question, '|'.join(options), update.effective_user.id, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-    poll_id = c.fetchone()[0]
-    conn.commit()
+    c.execute('SELECT first_name, username, group_name, full_name, phone, is_verified, last_active FROM users WHERE user_id = %s', (user_id,))
+    user = c.fetchone()
     conn.close()
-    keyboard = []
-    for i, option in enumerate(options):
-        keyboard.append([InlineKeyboardButton(f"🔹 {option.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')])
-    keyboard.append([InlineKeyboardButton("📊 Посмотреть результаты", callback_data=f'results_{poll_id}')])
-    keyboard.append([InlineKeyboardButton("📢 Отправить всем студентам", callback_data=f'publish_poll_{poll_id}')])
-    text = f"🗳️ Новое голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
-# ==================== АДМИН-КОМАНДЫ (Расписание и Домашка) ====================
-async def add_schedule_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    if len(context.args) == 5:
-        group_name = "ОБЩЕЕ"
-        day_short, time, subject, teacher, room = context.args
-    elif len(context.args) == 6:
-        group_name = context.args[0]
-        day_short, time, subject, teacher, room = context.args[1], context.args[2], context.args[3], context.args[4], context.args[5]
+    if not user:
+        text = "⚠️ Ты не зарегистрирован в системе.\n\nНапиши /start, чтобы пройти регистрацию."
     else:
-        await update.message.reply_text("⚠️ Формат: /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД")
-        return
+        first_name, username, group_name, full_name, phone, is_verified, last_active = user
+        status = "✅ Подтвержден" if is_verified == 1 else "⏳ Ожидает подтверждения"
+        text = (f"👤 **Твой профиль**\n\n"
+                f"📛 **Имя:** {first_name}\n🔗 **Username:** @{username or 'не указан'}\n"
+                f"👥 **Группа:** {group_name or 'не указана'}\n📝 **ФИО:** {full_name or 'не указано'}\n"
+                f"📞 **Телефон:** {phone or 'не указан'}\n🔐 **Статус:** {status}\n"
+                f"🕐 **Последняя активность:** {last_active or 'никогда'}\n\n"
+                f"💡 Чтобы изменить данные, напиши администратору через команду /anon_chat.")
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
+
+# ==================== АДМИН: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ====================
+async def export_users_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    await update.message.reply_text("📥 Формирую файл с базой данных...")
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT user_id, first_name, username, group_name, full_name, phone, is_verified, last_active FROM users ORDER BY group_name')
+    users = c.fetchall()
+    conn.close()
+    if not users: return await update.message.reply_text("⚠️ База данных пуста.")
+
+    file_path = '/tmp/students_export.csv'
+    with open(file_path, 'w', newline='', encoding='utf-8-sig') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Telegram ID', 'Имя', 'Username', 'Группа', 'ФИО', 'Телефон', 'Верифицирован (1=Да)', 'Последняя активность'])
+        for u in users: writer.writerow(u)
+            
+    with open(file_path, 'rb') as f:
+        await update.message.reply_document(document=f, filename='База_студентов_NK_College.csv', caption=f"✅ Готово! Экспортировано {len(users)} студентов.")
+    os.remove(file_path)
+
+async def edit_user_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if len(context.args) < 3: return await update.message.reply_text("⚠️ Формат: /edit_user [ID] fio/group/phone [значение]\nПример: /edit_user 8688778044 fio Иванов Иван Иванович")
+    try: user_id = int(context.args[0])
+    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
+    
+    field = context.args[1].lower()
+    new_value = ' '.join(context.args[2:])
+    valid_fields = {'fio': 'full_name', 'group': 'group_name', 'phone': 'phone'}
+    if field not in valid_fields: return await update.message.reply_text("⚠️ Неверное поле! Доступные: fio, group, phone")
+    
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT first_name, full_name, group_name, phone FROM users WHERE user_id = %s', (user_id,))
+    user = c.fetchone()
+    if not user: conn.close(); return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
+    
+    c.execute(f'UPDATE users SET {valid_fields[field]} = %s WHERE user_id = %s', (new_value, user_id))
+    conn.commit(); conn.close()
+    
+    field_names = {'fio': 'ФИО', 'group': 'группу', 'phone': 'телефон'}
+    await update.message.reply_text(f"✅ Данные обновлены!\n🆔 ID: {user_id}\n📝 Изменено: {field_names[field]}\n📄 Новое значение: {new_value}")
+
+async def delete_user_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not context.args: return await update.message.reply_text("⚠️ Формат: /delete_user [ID]")
+    try: user_id = int(context.args[0])
+    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT first_name, full_name, group_name FROM users WHERE user_id = %s', (user_id,))
+    user = c.fetchone()
+    if not user: conn.close(); return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
+    c.execute('DELETE FROM users WHERE user_id = %s', (user_id,))
+    conn.commit(); conn.close()
+    await update.message.reply_text(f"✅ Пользователь удален!\n🆔 ID: {user_id}\n👤 Имя: {user[0]}")
+
+async def active_users_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    days = 7
+    if context.args:
+        try: days = int(context.args[0])
+        except: pass
+    cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE last_active >= %s ORDER BY last_active DESC LIMIT 50', (cutoff_date,))
+    users = c.fetchall()
+    conn.close()
+    if not users: return await update.message.reply_text(f"📊 Нет активных пользователей за последние {days} дней.")
+    text = f"📊 АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (за {days} дней):\n\n"
+    for uid, fname, full, grp, last in users:
+        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last}\n\n"
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def inactive_users_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    days = 30
+    if context.args:
+        try: days = int(context.args[0])
+        except: pass
+    cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute("SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE (last_active < %s OR last_active IS NULL) AND is_verified = 1 ORDER BY last_active ASC LIMIT 50", (cutoff_date,))
+    users = c.fetchall()
+    conn.close()
+    if not users: return await update.message.reply_text(f"✅ Все пользователи активны за последние {days} дней!")
+    text = f"😴 НЕАКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (не заходили {days}+ дней):\n\n"
+    for uid, fname, full, grp, last in users:
+        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last or 'никогда'}\n\n"
+    text += "💡 Чтобы удалить: /delete_user [ID]"
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+# ==================== ЗАГРУЗКА РАСПИСАНИЯ ИЗ CSV ====================
+async def upload_schedule_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("⛔ Только для админа!")
+    
+    doc = update.message.document
+    if not doc and update.message.reply_to_message:
+        doc = update.message.reply_to_message.document
+
+    if not doc:
+        return await update.message.reply_text(
+            "⚠️ Нужно прикрепить файл к команде или ответить на файл командой /upload_schedule.\n\n"
+            "Файл должен быть в формате CSV со столбцами: Группа, День, Время, Предмет, Преподаватель, Аудитория"
+        )
+    
+    await update.message.reply_text("📥 Читаю файл и очищаю старое расписание...")
+    
+    file = await context.bot.get_file(doc.file_id)
+    file_path = '/tmp/schedule_upload.csv'
+    await file.download_to_drive(file_path)
+    
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('DELETE FROM schedule')
+    conn.commit()
+    
+    count = 0
+    errors = 0
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row = {k.strip(): v for k, v in row.items()}
+                try:
+                    group = row.get('Группа', '').strip()
+                    day = row.get('День', '').strip()
+                    time = row.get('Время', '').strip()
+                    subject = row.get('Предмет', '').strip()
+                    teacher = row.get('Преподаватель', '').strip()
+                    room = row.get('Аудитория', '').strip()
+                    
+                    if group and day and time and subject:
+                        c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
+                                     VALUES (%s, %s, %s, %s, %s, %s)''',
+                                  (group, day, time, subject, teacher, room))
+                        count += 1
+                except Exception as e:
+                    errors += 1
+        conn.commit()
+        conn.close()
+        await update.message.reply_text(f"✅ Расписание успешно загружено!\n📚 Добавлено пар: {count}\n❌ Ошибок: {errors}")
+    except Exception as e:
+        conn.close()
+        await update.message.reply_text(f"❌ Ошибка при чтении файла: {e}")
+    
+    if os.path.exists(file_path): os.remove(file_path)
+
+# ==================== АДМИН: РАСПИСАНИЕ И ДОМАШКА ====================
+async def add_schedule_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if len(context.args) == 5:
+        group_name, day_short, time, subject, teacher, room = "ОБЩЕЕ", context.args[0], context.args[1], context.args[2], context.args[3], context.args[4]
+    elif len(context.args) == 6:
+        group_name, day_short, time, subject, teacher, room = context.args[0], context.args[1], context.args[2], context.args[3], context.args[4], context.args[5]
+    else: return await update.message.reply_text("⚠️ Формат: /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД")
+    
     valid_days = {'ПН': 'Понедельник', 'ВТ': 'Вторник', 'СР': 'Среда', 'ЧТ': 'Четверг', 'ПТ': 'Пятница', 'СБ': 'Суббота', 'ВС': 'Воскресенье'}
-    if day_short.upper() not in valid_days:
-        await update.message.reply_text(f"⚠️ Неверный день! Используй: {', '.join(valid_days.keys())}")
-        return
-    if len(time) != 5 or time[2] != ':':
-        await update.message.reply_text("⚠️ Неверное время! Формат: 09:00")
-        return
+    if day_short.upper() not in valid_days: return await update.message.reply_text(f"⚠️ Неверный день! Используй: {', '.join(valid_days.keys())}")
+    if len(time) != 5 or time[2] != ':': return await update.message.reply_text("⚠️ Неверное время! Формат: 09:00")
+    
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     c.execute('INSERT INTO schedule (group_name, day, time, subject, teacher, room) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id',
               (group_name, valid_days[day_short.upper()], time, subject, teacher, room))
     sid = c.fetchone()[0]
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Пара добавлена! ID: {sid}\nДля удаления: /delete_schedule {sid}")
 
 async def view_schedule_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     c.execute("SELECT id, group_name, day, time, subject, teacher, room FROM schedule ORDER BY group_name, CASE day WHEN 'Понедельник' THEN 1 WHEN 'Вторник' THEN 2 WHEN 'Среда' THEN 3 WHEN 'Четверг' THEN 4 WHEN 'Пятница' THEN 5 WHEN 'Суббота' THEN 6 WHEN 'Воскресенье' THEN 7 END, time")
-    schedule = c.fetchall()
-    conn.close()
-    if not schedule:
-        await update.message.reply_text("📅 Расписание пустое!")
-        return
+    schedule = c.fetchall(); conn.close()
+    if not schedule: return await update.message.reply_text("📅 Расписание пустое!")
     text = "📅 ВСЕ РАСПИСАНИЕ:\n\n"
     cur_group, cur_day = None, None
     for sid, gn, day, time, subj, teach, room in schedule:
@@ -410,6 +440,201 @@ async def delete_homework_command(update: Update, context):
     conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Удалено: {res[0]} | {res[1]}: {res[2]}")
 
+# ==================== РАССЫЛКИ ====================
+async def broadcast_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not update.message.reply_to_message: return await update.message.reply_text("⚠️ Ответь на сообщение командой /broadcast")
+    reply_msg = update.message.reply_to_message
+    users = get_all_users()
+    if not users: return await update.message.reply_text("⚠️ В базе нет пользователей!")
+    await update.message.reply_text(f"📨 Начинаю рассылку {len(users)} пользователям...")
+    success, failed = 0, 0
+    for user_data in users:
+        try:
+            if reply_msg.photo: await context.bot.send_photo(user_data[0], reply_msg.photo[-1].file_id, caption=reply_msg.caption or "")
+            elif reply_msg.video: await context.bot.send_video(user_data[0], reply_msg.video.file_id, caption=reply_msg.caption or "")
+            elif reply_msg.document: await context.bot.send_document(user_data[0], reply_msg.document.file_id, caption=reply_msg.caption or "")
+            elif reply_msg.text: await context.bot.send_message(user_data[0], text=reply_msg.text)
+            else: await context.bot.send_message(user_data[0], text="📢 Объявление от администрации")
+            success += 1
+            await asyncio.sleep(0.05)
+        except: failed += 1
+    await update.message.reply_text(f"✅ Рассылка завершена!\n📨 Отправлено: {success}\n❌ Ошибок: {failed}")
+
+async def broadcast_cancel_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    users = get_all_users()
+    if not users: return await update.message.reply_text("⚠️ В базе нет пользователей!")
+    await update.message.reply_text(f"📨 Начинаю отмену рассылки {len(users)} пользователям...")
+    success, failed = 0, 0
+    cancel_text = "⚠️ **ПРЕДЫДУЩЕЕ ОБЪЯВЛЕНИЕ ОТМЕНЕНО**\n\nПросим игнорировать предыдущее сообщение.\nПриносим извинения за неудобства."
+    for user_data in users:
+        try:
+            await context.bot.send_message(chat_id=user_data[0], text=cancel_text, parse_mode='Markdown')
+            success += 1
+            await asyncio.sleep(0.05)
+        except: failed += 1
+    await update.message.reply_text(f"✅ Отмена рассылки завершена!\n📨 Отправлено: {success}\n❌ Ошибок: {failed}")
+
+async def good_morning_job(context):
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT user_id, first_name FROM users WHERE is_verified = 1')
+    users = c.fetchall()
+    conn.close()
+    success, failed = 0, 0
+    for user_id, first_name in users:
+        try:
+            text = f"☀️ Доброе утро, {first_name}!\n\nНе забудь проверить расписание и домашние задания!\n\n👇 Быстрые команды:"
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=main_menu_keyboard())
+            success += 1
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            failed += 1
+    try: await context.bot.send_message(chat_id=ADMIN_ID, text=f"✅ Утренняя рассылка завершена!\n📨 Успешно: {success}\n❌ Ошибок: {failed}")
+    except: pass
+
+async def send_later_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not update.message.reply_to_message: return await update.message.reply_text("⚠️ Сначала ответь на сообщение, а потом напиши команду.")
+    if len(context.args) < 2: return await update.message.reply_text("⚠️ Укажи дату и время! Пример: /send_later 31.08.2026 14:05")
+    
+    date_str, time_str = context.args[0], context.args[1]
+    try:
+        target_dt = datetime.datetime.strptime(f"{date_str} {time_str}", "%d.%m.%Y %H:%M")
+        target_dt = TIMEZONE.localize(target_dt)
+    except ValueError: return await update.message.reply_text("⚠️ Неверный формат! Используй: /send_later ДД.ММ.ГГГГ ЧЧ:ММ")
+    
+    now = datetime.datetime.now(TIMEZONE)
+    if target_dt <= now: return await update.message.reply_text("⚠️ Время должно быть в будущем!")
+    
+    delay_seconds = (target_dt - now).total_seconds()
+    msg = update.message.reply_to_message
+    text = msg.text or msg.caption or ""
+    file_type, file_id = None, None
+    if msg.photo: file_type, file_id = 'photo', msg.photo[-1].file_id
+    elif msg.video: file_type, file_id = 'video', msg.video.file_id
+    elif msg.document: file_type, file_id = 'document', msg.document.file_id
+
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (%s, %s, %s, %s, %s) RETURNING id', (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
+    msg_id = c.fetchone()[0]
+    conn.commit(); conn.close()
+
+    context.job_queue.run_once(send_scheduled_job, delay_seconds, data={'msg_id': msg_id})
+    await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
+
+async def cancel_send_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not context.args: return await update.message.reply_text("⚠️ Формат: /cancel_send [ID]\nПример: /cancel_send 5")
+    try: msg_id = int(context.args[0])
+    except ValueError: return await update.message.reply_text("⚠️ ID должен быть числом!")
+
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT text, send_at FROM scheduled_messages WHERE id = %s', (msg_id,))
+    msg_data = c.fetchone()
+    if not msg_data: conn.close(); return await update.message.reply_text(f"❌ Запланированное сообщение с ID {msg_id} не найдено или уже было отправлено!")
+
+    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
+    conn.commit(); conn.close()
+    await update.message.reply_text(f"✅ Запланированная рассылка ID {msg_id} успешно отменена!")
+
+async def send_scheduled_job(context):
+    msg_id = context.job.data['msg_id']
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT text, file_type, file_id, caption FROM scheduled_messages WHERE id = %s', (msg_id,))
+    msg_data = c.fetchone()
+    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
+    conn.commit(); conn.close()
+    if not msg_data: return
+    
+    text, file_type, file_id, caption = msg_data
+    users = get_all_users()
+    for user_data in users:
+        try:
+            if file_type == 'photo': await context.bot.send_photo(user_data[0], file_id, caption=caption or text)
+            elif file_type == 'video': await context.bot.send_video(user_data[0], file_id, caption=caption or text)
+            elif file_type == 'document': await context.bot.send_document(user_data[0], file_id, caption=caption or text)
+            else: await context.bot.send_message(user_data[0], text=text)
+            await asyncio.sleep(0.05)
+        except Exception as e: print(f"Ошибка отправки: {e}")
+    await context.bot.send_message(ADMIN_ID, f"✅ Отложенная рассылка ID {msg_id} успешно отправлена!")
+
+# ==================== ГОЛОСОВАНИЯ ====================
+async def create_poll_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if len(context.args) < 3: return await update.message.reply_text("⚠️ Формат: /create_poll Вопрос Вариант1 Вариант2 ...")
+    question, options = context.args[0], context.args[1:]
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('INSERT INTO polls (question, options, creator_id, created_at) VALUES (%s, %s, %s, %s) RETURNING id',
+              (question, '|'.join(options), update.effective_user.id, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+    poll_id = c.fetchone()[0]
+    conn.commit(); conn.close()
+    
+    keyboard = [[InlineKeyboardButton(f"🔹 {opt.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')] for i, opt in enumerate(options)]
+    keyboard.append([InlineKeyboardButton("📊 Результаты", callback_data=f'results_{poll_id}')])
+    keyboard.append([InlineKeyboardButton("📢 Отправить всем", callback_data=f'publish_poll_{poll_id}')])
+    await update.message.reply_text(f"🗳️ Новое голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def poll_results_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    if not context.args: return await update.message.reply_text("⚠️ Формат: /poll_results [ID]")
+    try: poll_id = int(context.args[0])
+    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
+    
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT question, options, created_at FROM polls WHERE id = %s', (poll_id,))
+    poll = c.fetchone()
+    if not poll: conn.close(); return await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
+    
+    question, options_str, created_at = poll
+    options = options_str.split('|')
+    c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = %s ORDER BY pv.option_index', (poll_id,))
+    votes = c.fetchall()
+    vote_counts = {i: 0 for i in range(len(options))}
+    for vote in votes: vote_counts[vote[0]] = vote_counts.get(vote[0], 0) + 1
+    total_votes = len(votes)
+    conn.close()
+    
+    text = f"📊 РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ #{poll_id}\n\nВопрос: {question.replace('_', ' ')}\nСоздано: {created_at}\nВсего голосов: {total_votes}\n\n"
+    for i, option in enumerate(options):
+        count = vote_counts.get(i, 0)
+        percent = (count / total_votes * 100) if total_votes > 0 else 0
+        text += f"🔹 {option.replace('_', ' ')}: {count} ({percent:.1f}%)\n"
+    if votes:
+        text += "\n👥 Кто голосовал:\n"
+        for opt_idx, fname, uname, gname in votes:
+            info = f"• {fname}"
+            if gname: info += f" ({gname})"
+            if uname and uname != "None": info += f" @{uname}"
+            text += f"{info} → {options[opt_idx].replace('_', ' ')}\n"
+    await update.message.reply_text(text)
+
+async def poll_history_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT id, question, options, created_at, is_active FROM polls ORDER BY created_at DESC LIMIT 20')
+    polls = c.fetchall(); conn.close()
+    if not polls: return await update.message.reply_text("🗳️ Нет голосований")
+    
+    text = "🗳️ ИСТОРИЯ ГОЛОСОВАНИЙ (последние 20)\n\n"
+    for pid, q, opts, created, active in polls:
+        options = opts.split('|')
+        status = "✅ Активно" if active == 1 else "🔴 Завершено"
+        conn2 = psycopg.connect(os.environ.get('DATABASE_URL'))
+        c2 = conn2.cursor()
+        c2.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = %s', (pid,))
+        vcount = c2.fetchone()[0]
+        conn2.close()
+        text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n📅 {created} | 👥 {vcount} голосов\nВарианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\nДетали: /poll_results {pid}\n\n" + "-" * 40 + "\n\n"
+    await update.message.reply_text(text)
+
 # ==================== ФУНКЦИЯ ПУБЛИКАЦИИ В КАНАЛ ====================
 async def publish_to_channel(context, anon_id):
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
@@ -417,8 +642,7 @@ async def publish_to_channel(context, anon_id):
     c.execute('SELECT group_name, message, recipient_type FROM anon_messages WHERE id = %s', (anon_id,))
     anon = c.fetchone()
     conn.close()
-    if not anon:
-        return False, "❌ Сообщение не найдено"
+    if not anon: return False, "❌ Сообщение не найдено"
     group_name, message_text, recipient_type = anon
     channel_text = f"💬 Анонимное сообщение\n\n{message_text}\n\n🕐 {datetime.datetime.now(TIMEZONE).strftime('%H:%M %d.%m.%Y')}"
     try:
@@ -426,8 +650,7 @@ async def publish_to_channel(context, anon_id):
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('UPDATE anon_messages SET channel_message_id = %s WHERE id = %s', (msg.message_id, anon_id))
-        conn.commit()
-        conn.close()
+        conn.commit(); conn.close()
         return True, f"✅ Опубликовано в канале!"
     except Exception as e:
         return False, f"❌ Ошибка публикации: {e}"
@@ -436,40 +659,32 @@ async def publish_to_channel(context, anon_id):
 async def button_handler(update: Update, context):
     query = update.callback_query
     data = query.data
+    await query.answer()
 
     if data == 'back_to_menu':
-        await query.answer()
-        if context.user_data.get('reg_step'):
-            context.user_data.clear()
-            await query.edit_message_text("❌ Регистрация отменена.\n\nЧтобы начать регистрацию заново, пожалуйста, напиши команду /start")
-            return
+        context.user_data.clear()
         await query.edit_message_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
         return
 
     if data.startswith('setgroup_'):
-        await query.answer()
         group_name = data.replace('setgroup_', '')
         if context.user_data.get('reg_step') == 'waiting_group':
             context.user_data['reg_group'] = group_name
             context.user_data['reg_step'] = 'waiting_phone'
             keyboard = [[KeyboardButton("📱 Поделиться номером телефона", request_contact=True)]]
-            reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
             await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text("✅ Группа выбрана!\n\nШаг 3 (последний): Нажми на кнопку ниже, чтобы подтвердить свой номер телефона.", reply_markup=reply_markup)
+            await query.message.reply_text("✅ Группа выбрана!\n\nШаг 3: Нажми на кнопку ниже, чтобы подтвердить номер телефона.", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
             return
-        user_id = query.from_user.id
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
-        conn.commit()
-        conn.close()
+        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, query.from_user.id))
+        conn.commit(); conn.close()
         await query.edit_message_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
         return
 
     elif data == 'schedule':
-        await query.answer()
         group = get_user_group(query.from_user.id)
-        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
+        if not group: text = "⚠️ Сначала укажи группу!"
         else:
             conn = psycopg.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
@@ -478,20 +693,13 @@ async def button_handler(update: Update, context):
             if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
             else:
                 text = f"🗓️ Расписание на {get_day_name()}\n👥 {group}\n\n"
-                for i, (time, subj, teach, room) in enumerate(schedule, 1):
-                    text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
-        
-        keyboard = [
-            [InlineKeyboardButton("🗓️ Показать на неделю", callback_data='schedule_week')],
-            [InlineKeyboardButton("◀️ Назад в меню", callback_data='back_to_menu')]
-        ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+                for i, (time, subj, teach, room) in enumerate(schedule, 1): text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗓️ На неделю", callback_data='schedule_week')], [InlineKeyboardButton("◀️ Назад", callback_data='back_to_menu')]]))
         return
 
     elif data == 'schedule_week':
-        await query.answer()
         group = get_user_group(query.from_user.id)
-        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
+        if not group: text = "⚠️ Сначала укажи группу!"
         else:
             conn = psycopg.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
@@ -508,9 +716,8 @@ async def button_handler(update: Update, context):
         return
 
     elif data == 'homework':
-        await query.answer()
         group = get_user_group(query.from_user.id)
-        if not group: text = "⚠️ Сначала укажи группу в Настройках!"
+        if not group: text = "⚠️ Сначала укажи группу!"
         else:
             conn = psycopg.connect(os.environ.get('DATABASE_URL'))
             c = conn.cursor()
@@ -519,92 +726,68 @@ async def button_handler(update: Update, context):
             if not hw: text = f"📝 Домашних заданий для {group} пока нет!"
             else:
                 text = f"📝 Домашние задания\n👥 {group}\n\n"
-                for subj, task, dead in hw:
-                    text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
+                for subj, task, dead in hw: text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
         await query.edit_message_text(text, reply_markup=back_button())
         return
 
     elif data == 'anon_chat':
-        await query.answer()
         group = get_user_group(query.from_user.id)
         if not group:
-            text = "⚠️ Сначала укажи свою группу в Настройках!\n\nБез группы анонимный чат не работает."
-            await query.edit_message_text(text, reply_markup=back_button())
+            await query.edit_message_text("⚠️ Сначала укажи свою группу в Настройках!", reply_markup=back_button())
         else:
             context.user_data['waiting_for_anon'] = True
             context.user_data['anon_recipient'] = 'all'
-            text = (f"💬 Анонимный чат\n\n📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n👉 {ANON_CHANNEL_LINK}\n\n⚠️ ПРАВИЛА:\n• Только для учебы и конструктивных вопросов\n• За оскорбления, буллинг и спам — бан\n• Все сообщения проходят модерацию администратором\n\nНапиши своё сообщение следующим текстом.\nПосле одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n◀️ Чтобы отменить, нажми 'Назад'.")
-            await query.edit_message_text(text, reply_markup=back_button())
+            await query.edit_message_text(f"💬 Анонимный чат\n\n📢 Канал: {ANON_CHANNEL_LINK}\n\n⚠️ ПРАВИЛА:\n• Только для учебы\n• Все сообщения проходят модерацию\n\nНапиши своё сообщение следующим текстом.", reply_markup=back_button())
         return
 
     elif data.startswith('approve_anon_'):
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Только для админа!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Только для админа!", show_alert=True)
         anon_id = int(data.split('_')[2])
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("UPDATE anon_messages SET status = 'approved', moderated_at = %s WHERE id = %s", (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
-        conn.commit()
-        conn.close()
+        conn.commit(); conn.close()
         success, result_msg = await publish_to_channel(context, anon_id)
         await query.edit_message_text(f"{result_msg}\n\nID сообщения: {anon_id}", reply_markup=back_button())
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT user_id FROM anon_messages WHERE id = %s', (anon_id,))
-        anon = c.fetchone()
-        conn.close()
+        anon = c.fetchone(); conn.close()
         if anon:
-            try: await context.bot.send_message(chat_id=anon[0], text="✅ Твоё анонимное сообщение одобрено и опубликовано в канале!")
+            try: await context.bot.send_message(chat_id=anon[0], text="✅ Твоё анонимное сообщение одобрено и опубликовано!")
             except: pass
         return
 
     elif data.startswith('reject_anon_'):
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Только для админа!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Только для админа!", show_alert=True)
         anon_id = int(data.split('_')[2])
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("UPDATE anon_messages SET status = 'rejected', moderated_at = %s WHERE id = %s", (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), anon_id))
-        conn.commit()
-        conn.close()
+        conn.commit(); conn.close()
         await query.edit_message_text(f"❌ Сообщение ID {anon_id} отклонено.", reply_markup=back_button())
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT user_id FROM anon_messages WHERE id = %s', (anon_id,))
-        anon = c.fetchone()
-        conn.close()
+        anon = c.fetchone(); conn.close()
         if anon:
             try: await context.bot.send_message(chat_id=anon[0], text="❌ Твоё анонимное сообщение отклонено администратором.")
             except: pass
         return
 
     elif data == 'admin':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
-        text = "👨‍💼 Админ-панель\n\nВыбери раздел:"
-        await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
+        await query.edit_message_text("👨‍💼 Админ-панель\n\nВыбери раздел:", reply_markup=admin_panel_keyboard())
         return
 
     elif data == 'admin_moderation':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("SELECT id, first_name, username, group_name, message, recipient_type, created_at FROM anon_messages WHERE status = 'pending' ORDER BY created_at DESC")
-        pending = c.fetchall()
-        conn.close()
-        if not pending:
-            text = "📥 Модерация\n\n✅ Нет сообщений на рассмотрении!"
-            await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
-            return
+        pending = c.fetchall(); conn.close()
+        if not pending: return await query.edit_message_text("📥 Модерация\n\n✅ Нет сообщений на рассмотрении!", reply_markup=admin_panel_keyboard())
+        
         text = f"📥 Модерация\n\n🔴 Сообщений на рассмотрении: {len(pending)}\n\n"
         keyboard = []
         for anon_id, first_name, username, group_name, message, recipient_type, created_at in pending:
@@ -617,19 +800,13 @@ async def button_handler(update: Update, context):
         return
 
     elif data == 'admin_moderation_history':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("SELECT id, first_name, group_name, message, recipient_type, status, created_at, moderated_at FROM anon_messages WHERE status != 'pending' ORDER BY moderated_at DESC LIMIT 20")
-        history = c.fetchall()
-        conn.close()
-        if not history:
-            text = "📋 История модерации\n\nИстория пуста."
-            await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
-            return
+        history = c.fetchall(); conn.close()
+        if not history: return await query.edit_message_text("📋 История модерации\n\nИстория пуста.", reply_markup=admin_panel_keyboard())
+        
         text = "📋 История модерации (последние 20)\n\n"
         for anon_id, first_name, group_name, message, recipient_type, status, created_at, moderated_at in history:
             emoji = "✅" if status == "approved" else "❌"
@@ -639,134 +816,83 @@ async def button_handler(update: Update, context):
         return
 
     elif data == 'admin_stats':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT COUNT(*) FROM users'); total_users = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM anon_messages WHERE status = 'pending'"); pending_anon = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM anon_messages WHERE status = 'approved'"); approved_anon = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM anon_messages WHERE status = 'rejected'"); rejected_anon = c.fetchone()[0]
-        total_anon = pending_anon + approved_anon + rejected_anon
         c.execute('SELECT COUNT(*) FROM schedule'); total_schedule = c.fetchone()[0]
         c.execute('SELECT COUNT(*) FROM homework'); total_homework = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM questions WHERE status = 'new'"); new_questions = c.fetchone()[0]
         c.execute('SELECT COUNT(*) FROM questions'); total_questions = c.fetchone()[0]
         conn.close()
-        text = (f"📊 Статистика бота\n\n👥 Пользователи:\n   Всего зарегистрировано: {total_users}\n\n💬 Анонимный чат:\n   Всего сообщений: {total_anon}\n   ✅ Одобрено: {approved_anon}\n   ❌ Отклонено: {rejected_anon}\n   ⏳ На модерации: {pending_anon}\n\n📅 Расписание:\n   Всего пар добавлено: {total_schedule}\n\n📝 Домашние задания:\n   Всего домашек: {total_homework}\n\n❓ Вопросы:\n   Всего вопросов: {total_questions}\n   🆕 Новых (непрочитанных): {new_questions}")
+        text = (f"📊 Статистика бота\n\n👥 Пользователи:\n   Всего зарегистрировано: {total_users}\n\n💬 Анонимный чат:\n   ✅ Одобрено: {approved_anon}\n   ❌ Отклонено: {rejected_anon}\n   ⏳ На модерации: {pending_anon}\n\n📅 Расписание:\n   Всего пар: {total_schedule}\n\n📝 Домашние задания:\n   Всего домашек: {total_homework}\n\n❓ Вопросы:\n   Всего: {total_questions}\n   🆕 Новых: {new_questions}")
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
     elif data == 'admin_help':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
-        text = (
-            "📖 Справка по админ-командам\n\n"
-            "📅 Расписание:\n"
-            "• /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД\n"
-            "• /view_schedule - просмотр всего\n"
-            "• /delete_schedule [ID] - удалить\n\n"
-            "📝 Домашние задания:\n"
-            "• /add_homework ГРУППА ПРЕДМЕТ ЗАДАНИЕ [До дедлайн]\n"
-            "• /view_homework - просмотр всех\n"
-            "• /delete_homework [ID] - удалить\n\n"
-            "📨 Рассылка:\n"
-            "• Ответь на сообщение командой /broadcast\n"
-            "• /broadcast_cancel - отменить рассылку\n"
-            "• /send_later ДД.ММ.ГГГГ ЧЧ:ММ - отложенная рассылка\n"
-            "• /cancel_send [ID] - отменить запланированную рассылку\n\n"
-            "🗳️ Голосование:\n"
-            "• /create_poll Вопрос Вариант1 Вариант2 ...\n"
-            "• /poll_history - история всех голосований\n"
-            "• /poll_results [ID] - узнать, кто проголосовал\n\n"
-            "👥 Управление пользователями:\n"
-            "• /export_users - выгрузить базу студентов в Excel (CSV)\n"
-            "• /edit_user [ID] fio/group/phone [значение] - изменить данные студента\n"
-            "• /delete_user [ID] - удалить пользователя из базы\n"
-            "• /active_users [дней] - кто был активен (по умолч. 7 дней)\n"
-            "• /inactive_users [дней] - кто не заходил (по умолч. 30 дней)\n\n"
-            "💬 Модерация:\n"
-            "• /admin - открыть админ-панель\n"
-            "• Модерация анонимок через кнопки\n\n"
-            "💡 Примеры:\n"
-            "/add_schedule ПН 09:00 Математика Иванов 301\n"
-            "/send_later 01.09.2026 08:00\n"
-            "/delete_user 123456789"
-        )
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
+        text = ("📖 Справка по админ-командам\n\n"
+                "📅 Расписание:\n• /upload_schedule (отправить CSV файл)\n• /add_schedule [ГРУППА] ДЕНЬ ВРЕМЯ ПРЕДМЕТ ПРЕПОД АУД\n• /view_schedule\n• /delete_schedule [ID]\n\n"
+                "📝 Домашка:\n• /add_homework ГРУППА ПРЕДМЕТ ЗАДАНИЕ [До дедлайн]\n• /view_homework\n• /delete_homework [ID]\n\n"
+                "📨 Рассылка:\n• Ответь на сообщение: /broadcast\n• /send_later ДД.ММ.ГГГГ ЧЧ:ММ\n• /cancel_send [ID]\n\n"
+                "👥 Пользователи:\n• /export_users - выгрузить базу в Excel\n• /edit_user [ID] fio/group/phone [значение]\n• /delete_user [ID]\n• /active_users [дней]\n• /inactive_users [дней]\n\n"
+                "🗳️ Голосование:\n• /create_poll Вопрос Вариант1 Вариант2 ...\n• /poll_history\n• /poll_results [ID]")
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
     elif data == 'admin_questions':
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Доступ запрещен!", show_alert=True)
-            return
-        await query.answer()
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Доступ запрещен!", show_alert=True)
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("SELECT id, user_id, question, date FROM questions WHERE status = 'new' ORDER BY date DESC LIMIT 10")
-        questions = c.fetchall()
-        conn.close()
-        if not questions:
-            text = "❓ Новых вопросов нет!"
-        else:
-            text = "❓ Новые вопросы:\n\n"
-            for q_id, user_id, question, date in questions:
-                conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-                c = conn.cursor()
-                c.execute('SELECT first_name, group_name FROM users WHERE user_id = %s', (user_id,))
-                user = c.fetchone()
-                conn.close()
-                user_name = user[0] if user else "Неизвестно"
-                user_group = user[1] if user and user[1] else "Группа не указана"
-                text += f"🔹 ID: {q_id}\n👤 {user_name} ({user_group})\n📅 {date}\n💬 {question}\n\n"
+        questions = c.fetchall(); conn.close()
+        if not questions: return await query.edit_message_text("❓ Новых вопросов нет!", reply_markup=admin_panel_keyboard())
+        
+        text = "❓ Новые вопросы:\n\n"
+        for q_id, user_id, question, date in questions:
+            conn2 = psycopg.connect(os.environ.get('DATABASE_URL'))
+            c2 = conn2.cursor()
+            c2.execute('SELECT first_name, group_name FROM users WHERE user_id = %s', (user_id,))
+            user = c2.fetchone(); conn2.close()
+            user_name = user[0] if user else "Неизвестно"
+            user_group = user[1] if user and user[1] else "Группа не указана"
+            text += f"🔹 ID: {q_id}\n👤 {user_name} ({user_group})\n📅 {date}\n💬 {question}\n\n"
         await query.edit_message_text(text, reply_markup=admin_panel_keyboard())
         return
 
     elif data.startswith('vote_'):
         parts = data.split('_')
-        poll_id = parts[1]
-        option_index = int(parts[2])
+        poll_id, option_index = parts[1], int(parts[2])
         user_id = query.from_user.id
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT id FROM poll_votes WHERE poll_id = %s AND user_id = %s', (poll_id, user_id))
-        if c.fetchone():
-            await query.answer("⚠️ Ты уже голосовал в этом опросе!", show_alert=True)
-            conn.close()
-            return
+        if c.fetchone(): conn.close(); return await query.answer("⚠️ Ты уже голосовал!", show_alert=True)
         c.execute('INSERT INTO poll_votes (poll_id, user_id, option_index) VALUES (%s, %s, %s)', (poll_id, user_id, option_index))
-        conn.commit()
-        conn.close()
+        conn.commit(); conn.close()
         await query.answer("✅ Твой голос принят!", show_alert=True)
         return
 
     elif data.startswith('publish_poll_'):
-        if query.from_user.id != ADMIN_ID:
-            await query.answer("⛔ Только для админа!", show_alert=True)
-            return
+        if query.from_user.id != ADMIN_ID: return await query.answer("⛔ Только для админа!", show_alert=True)
         poll_id = data.split('_')[2]
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT question, options FROM polls WHERE id = %s', (poll_id,))
-        poll = c.fetchone()
-        conn.close()
-        if not poll:
-            await query.answer("Опрос не найден", show_alert=True)
-            return
+        poll = c.fetchone(); conn.close()
+        if not poll: return await query.answer("Опрос не найден", show_alert=True)
+        
         question, options_str = poll
         options = options_str.split('|')
-        keyboard = []
-        for i, option in enumerate(options):
-            keyboard.append([InlineKeyboardButton(f"🔹 {option.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')])
-        keyboard.append([InlineKeyboardButton("📊 Посмотреть результаты", callback_data=f'results_{poll_id}')])
+        keyboard = [[InlineKeyboardButton(f"🔹 {opt.replace('_', ' ')}", callback_data=f'vote_{poll_id}_{i}')] for i, opt in enumerate(options)]
+        keyboard.append([InlineKeyboardButton("📊 Результаты", callback_data=f'results_{poll_id}')])
         text = f"🗳️ Голосование!\n\n❓ {question.replace('_', ' ')}\n\nВыбери вариант:"
         reply_markup = InlineKeyboardMarkup(keyboard)
         users = get_all_users()
-        await query.answer()
+        
         await query.edit_message_text(f"📨 Начинаю рассылку голосования {len(users)} студентам...")
         success = 0
         for user_data in users:
@@ -774,8 +900,7 @@ async def button_handler(update: Update, context):
                 await context.bot.send_message(chat_id=user_data[0], text=text, reply_markup=reply_markup)
                 success += 1
                 await asyncio.sleep(0.3)
-            except Exception as e:
-                print(f"Ошибка рассылки: {e}")
+            except: pass
         await query.edit_message_text(f"✅ Голосование успешно отправлено {success} студентам!")
         return
 
@@ -785,686 +910,174 @@ async def button_handler(update: Update, context):
         c = conn.cursor()
         c.execute('SELECT question, options FROM polls WHERE id = %s', (poll_id,))
         poll = c.fetchone()
-        if not poll:
-            await query.answer("Опрос не найден", show_alert=True)
-            conn.close()
-            return
+        if not poll: conn.close(); return await query.answer("Опрос не найден", show_alert=True)
+        
         question, options_str = poll
         options = options_str.split('|')
         c.execute('SELECT option_index, COUNT(*) FROM poll_votes WHERE poll_id = %s GROUP BY option_index', (poll_id,))
-        votes = dict(c.fetchall())
-        total_votes = sum(votes.values())
+        votes = dict(c.fetchall()); total_votes = sum(votes.values())
         conn.close()
+        
         text = f"📊 Результаты: {question.replace('_', ' ')}\n\n"
         for i, option in enumerate(options):
             count = votes.get(i, 0)
             percent = (count / total_votes * 100) if total_votes > 0 else 0
             text += f"🔹 {option.replace('_', ' ')}: {count} голосов ({percent:.1f}%)\n"
         text += f"\n👥 Всего проголосовало: {total_votes}"
-        await query.answer()
         await query.edit_message_text(text, reply_markup=back_button())
         return
 
     elif data == 'profile':
-        await query.answer()
         user_id = query.from_user.id
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('SELECT first_name, username, group_name, full_name, phone, is_verified, last_active FROM users WHERE user_id = %s', (user_id,))
-        user = c.fetchone()
-        conn.close()
-        
-        if not user:
-            text = "⚠️ Ты не зарегистрирован в системе.\n\nНапиши /start, чтобы пройти регистрацию."
+        user = c.fetchone(); conn.close()
+        if not user: text = "⚠️ Ты не зарегистрирован в системе.\n\nНапиши /start."
         else:
             first_name, username, group_name, full_name, phone, is_verified, last_active = user
             status = "✅ Подтвержден" if is_verified == 1 else "⏳ Ожидает подтверждения"
-            
-            text = (
-                f"👤 **Твой профиль**\n\n"
-                f" **Имя:** {first_name}\n"
-                f"🔗 **Username:** @{username or 'не указан'}\n"
-                f"👥 **Группа:** {group_name or 'не указана'}\n"
-                f"📝 **ФИО:** {full_name or 'не указано'}\n"
-                f"📞 **Телефон:** {phone or 'не указан'}\n"
-                f"🔐 **Статус:** {status}\n"
-                f"🕐 **Последняя активность:** {last_active or 'никогда'}\n\n"
-                f" Чтобы изменить данные, напиши администратору через кнопку '❓ Вопрос админу'."
-            )
-        
+            text = (f"👤 **Твой профиль**\n\n"
+                    f"📛 **Имя:** {first_name}\n🔗 **Username:** @{username or 'не указан'}\n"
+                    f"👥 **Группа:** {group_name or 'не указана'}\n📝 **ФИО:** {full_name or 'не указано'}\n"
+                    f"📞 **Телефон:** {phone or 'не указан'}\n🔐 **Статус:** {status}\n"
+                    f"🕐 **Последняя активность:** {last_active or 'никогда'}")
         await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
         return
+
     elif data == 'contacts_info':
-        await query.answer()
-        text = ("📍 **Контакты Налогового колледжа**\n\n👩‍💼 **Директор:** Кузьминская Юлия Борисовна\n\n🏢 **Адрес:** г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n(м. Хорошево, м. Полежаевская)\n\n🕒 **Режим работы:**\nПн-Пт: 09:00 - 19:30\nСб: 10:00 - 14:00\nВс: выходной\n\n📞 **Телефоны:**\nПриемная комиссия: +7 (495) 568-07-07\nСекретарь: +7 (499) 191-00-69\n\n🔗 **Полезные ссылки:**\n🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n💻 Личный кабинет абитуриента: https://lk-nk.ru\n🎓 Дистанционное обучение: https://distant-nk.ru")
-        await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
+        await query.edit_message_text("📍 Контакты НК\n👩‍💼 Директор: Кузьминская Ю.Б.\n🏢 г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n📞 +7 (495) 568-07-07", reply_markup=back_button(), parse_mode='Markdown')
         return
-
     elif data == 'practice_info':
-        await query.answer()
-        text = ("💼 **Партнеры по практике**\n\nНаши студенты проходят практику в ведущих организациях:\n\n🏛️ Федеральная налоговая служба (ФНС)\n🏦 ПАО «Сбербанк»\n🏦 ПАО «Московский кредитный банк»\n🏦 ПАО «Банк УРАЛСИБ»\n⚖️ Департамент труда и соцзащиты г. Москвы\n🤝 Ассоциация налоговых консультантов\n🏢 ООО «Международная консалтинговая группа»\n\n📌 *Полный список мест практики доступен в учебной части колледжа.*")
-        await query.edit_message_text(text, reply_markup=back_button(), parse_mode='Markdown')
+        await query.edit_message_text("💼 Партнеры по практике:\n🏛️ ФНС\n🏦 Сбербанк, МКБ, УРАЛСИБ\n⚖️ Департамент труда и соцзащиты г. Москвы", reply_markup=back_button(), parse_mode='Markdown')
         return
-
-    elif data == 'grades': text = "📊 Оценок пока нет."
-    elif data == 'gpa': text = "🧮 Оценок пока нет."
-    elif data == 'teachers': text = "👨‍🏫 Список преподавателей пока пуст."
-    elif data == 'news': text = "📰 Новостей пока нет."
-    elif data == 'weather':
-        try:
-            r = requests.get("https://api.open-meteo.com/v1/forecast?latitude=55.75&longitude=37.61&current_weather=true")
-            d = r.json()['current_weather']
-            text = f"🌤️ Погода в Москве\n🌡️ {d['temperature']}°C\n💨 Ветер: {d['windspeed']} км/ч"
-        except: text = "❌ Не удалось получить погоду."
-    elif data == 'exams': text = "🎓 Экзаменов пока не запланировано."
-    elif data == 'question':
-        context.user_data['waiting_for_question'] = True
-        text = "❓ Задать вопрос админу\n\nНапиши свой вопрос. Он уйдет лично администратору."
-    elif data == 'conspekts': text = "📚 Конспектов пока нет."
-    elif data == 'attendance': text = "📈 Посещаемость в разработке."
-    elif data == 'rooms': text = "🗺️ Карта аудиторий в разработке."
-    elif data == 'reminders': text = "⏰ Напоминания в разработке."
-    elif data == 'settings':
-        group = get_user_group(query.from_user.id)
-        text = f"👥 Выбор группы\n\n👤 {query.from_user.first_name}\n👥 Группа: {group or 'Не указана'}\n\n👇 Выбери свою группу:"
-        await query.answer()
-        await query.edit_message_text(text, reply_markup=groups_keyboard())
+    elif data in ['grades', 'gpa', 'teachers', 'news', 'weather', 'exams', 'attendance', 'rooms', 'reminders', 'conspekts']:
+        await query.edit_message_text("⚙️ Этот раздел в разработке или пуст.", reply_markup=back_button())
         return
     elif data == 'help':
-        text = ("🆘 Помощь\n\n📱 Основные команды:\n• /start - Главное меню\n• /setgroup [ГРУППА] - Выбрать группу\n\n❓ Вопросы:\n• Нажми '❓ Вопрос админу'\n\n⚙️ Настройки:\n• Нажми '👥 Выбрать группу' для выбора группы")
-        await query.answer()
-        await query.edit_message_text(text, reply_markup=back_button())
+        await query.edit_message_text("🆘 Помощь\n\n📱 /start - Главное меню\n📱 /setgroup [ГРУППА] - Выбрать группу\n❓ /anon_chat - Задать вопрос", reply_markup=back_button())
         return
-    else: text = "⚙️ В разработке."
-
-    if text:
-        await query.answer()
-        await query.edit_message_text(text, reply_markup=back_button())
-
-# ==================== ОБРАБОТЧИК РЕГИСТРАЦИИ ====================
-async def handle_registration_message(update: Update, context):
-    user_id = update.effective_user.id
-    print(f"🔍 DEBUG: Сработал handle_registration_message. Контакт: {bool(update.message.contact)}, Текст: {update.message.text}")
-    print(f"🔍 DEBUG: Текущий reg_step = {context.user_data.get('reg_step')}")
     
-    # 1. ОБРАБОТКА КОНТАКТА
-    if update.message.contact:
-        print("🔍 DEBUG: Это сообщение с контактом!")
-        if context.user_data.get('reg_step') == 'waiting_phone' or not context.user_data.get('reg_step'):
-            phone = update.message.contact.phone_number
-            group_name = context.user_data.get('reg_group')
-            full_name = context.user_data.get('reg_full_name')
-            
-            print(f"🔍 DEBUG: Phone={phone}, Group={group_name}, Name={full_name}")
-            
-            if not group_name or not full_name:
-                await update.message.reply_text(
-                    "⚠️ Произошла ошибка: данные о имени или группе потеряны.\n"
-                    "Пожалуйста, начните регистрацию заново с команды /start", 
-                    reply_markup=ReplyKeyboardRemove()
-                )
-                context.user_data.clear()
-                return
+    await query.edit_message_text("⚙️ В разработке.", reply_markup=back_button())
 
-            conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-            c = conn.cursor()
-            c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified)
-                         VALUES (%s, %s, %s, %s, %s, %s, 1)
-                         ON CONFLICT(user_id) DO UPDATE SET
-                            full_name=excluded.full_name, phone=excluded.phone,
-                            group_name=excluded.group_name, is_verified=1''',
-                      (user_id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
-            conn.commit()
-            conn.close()
-            
-            context.user_data.clear()
-            
-            await update.message.reply_text(
-                f"✅ Регистрация завершена!\n\n"
-                f"👤 {full_name}\n📞 {phone}\n👥 {group_name}\n\n"
-                f"Теперь тебе доступны все функции!", 
-                reply_markup=ReplyKeyboardRemove()
-            )
-            await update.message.reply_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
-            
-            log_text = (f"🆕 **Новая регистрация!**\n\n"
-                        f"🆔 ID пользователя: `{user_id}`\n"
-                        f" ФИО: {full_name}\n"
-                        f"📞 Телефон: {phone}\n"
-                        f"👥 Группа: {group_name}\n")
-            if update.effective_user.username:
-                log_text += f"🔗 Юзернейм: @{update.effective_user.username}\n"
-            try:
-                await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=log_text, parse_mode='Markdown')
-            except Exception as e:
-                print(f"❌ Ошибка отправки в лог-канал: {e}")
-            return
-    
-    # 2. ОБРАБОТКА ФИО (текст)
+# ==================== ОБРАБОТКА СООБЩЕНИЙ ====================
+async def handle_message(update: Update, context):
     if context.user_data.get('reg_step') == 'waiting_full_name':
         context.user_data['reg_full_name'] = update.message.text.strip()
         context.user_data['reg_step'] = 'waiting_group'
-        await update.message.reply_text("✅ ФИО принято!\n\nШаг 2: Выбери свою группу из списка ниже:", reply_markup=groups_keyboard())
+        await update.message.reply_text("✅ ФИО принято!\n\nШаг 2: Выбери свою группу:", reply_markup=groups_keyboard())
         return
+
+    if update.message.contact and context.user_data.get('reg_step') == 'waiting_phone':
+        phone = update.message.contact.phone_number
+        group_name = context.user_data.get('reg_group')
+        full_name = context.user_data.get('reg_full_name')
+        if not group_name or not full_name:
+            return await update.message.reply_text("⚠️ Ошибка. Начни с /start", reply_markup=ReplyKeyboardRemove())
         
-    # 3. Если ничего не подошло, передаем в обычный обработчик сообщений
-    await handle_message(update, context)
-
-
-# ==================== ОБРАБОТЧИК СООБЩЕНИЙ ====================
-async def handle_message(update: Update, context):
-    # Если пользователь в процессе регистрации - НЕ обрабатываем здесь
-    if context.user_data.get('reg_step') in ['waiting_full_name', 'waiting_group', 'waiting_phone']:
+        conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+        c = conn.cursor()
+        c.execute('''INSERT INTO users (user_id, first_name, username, full_name, phone, group_name, is_verified)
+                     VALUES (%s, %s, %s, %s, %s, %s, 1)
+                     ON CONFLICT(user_id) DO UPDATE SET full_name=excluded.full_name, phone=excluded.phone, group_name=excluded.group_name, is_verified=1''',
+                  (update.effective_user.id, update.effective_user.first_name, update.effective_user.username, full_name, phone, group_name))
+        conn.commit(); conn.close()
+        context.user_data.clear()
+        await update.message.reply_text(f"✅ Регистрация завершена!\n👤 {full_name}\n👥 {group_name}", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("👇 Выбери действие:", reply_markup=main_menu_keyboard())
+        
+        log_text = f"🆕 **Новая регистрация!**\n🆔 ID: `{update.effective_user.id}`\n👤 ФИО: {full_name}\n📞 Телефон: {phone}\n👥 Группа: {group_name}"
+        try: await context.bot.send_message(chat_id=LOG_CHANNEL_ID, text=log_text, parse_mode='Markdown')
+        except: pass
         return
-    
-    # Если это контакт и пользователь не в регистрации - игнорируем
-    if update.message.contact:
-        return
-    
-    user_id = update.effective_user.id
-    text = update.message.text
-    
-    if not text:
-        return
-
-    # Обновляем активность только для зарегистрированных пользователей
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('UPDATE users SET last_active = %s WHERE user_id = %s', (datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M'), user_id))
-    conn.commit()
-    conn.close()
 
     if context.user_data.get('waiting_for_anon'):
         context.user_data['waiting_for_anon'] = False
-        context.user_data['anon_recipient'] = None
-        group = get_user_group(user_id)
-        if not group:
-            await update.message.reply_text("️ Ошибка: группа не найдена.", reply_markup=main_menu_keyboard())
-            return
+        group = get_user_group(update.effective_user.id)
+        if not group: return await update.message.reply_text("⚠️ Сначала укажи группу!", reply_markup=main_menu_keyboard())
+        
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute("INSERT INTO anon_messages (user_id, first_name, username, group_name, message, recipient_type, status, created_at) VALUES (%s, %s, %s, %s, %s, 'all', 'pending', %s) RETURNING id",
-                  (user_id, update.effective_user.first_name, update.effective_user.username or "нет", group, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+                  (update.effective_user.id, update.effective_user.first_name, update.effective_user.username or "нет", group, update.message.text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
         anon_id = c.fetchone()[0]
-        conn.commit()
-        conn.close()
-        await update.message.reply_text(f"✅ Твоё сообщение отправлено на модерацию!\n\n📤 Получатели: 🌍 Все студенты колледжа\n ID сообщения: {anon_id}\n\nПосле одобрения администратором оно будет опубликовано в канале анонимок.\n\n️ Если сообщение нарушает правила — оно будет отклонено.", reply_markup=main_menu_keyboard())
-        sender_username = update.effective_user.username or "нет"
-        admin_msg = (f"📥 НОВОЕ СООБЩЕНИЕ НА МОДЕРАЦИЮ\n\n🆔 ID: {anon_id}\n👤 От: {update.effective_user.first_name}\n📱 Username: @{sender_username}\n👥 Группа: {group}\n📤 Кому: 🌍 Всем студентам\n Время: {datetime.datetime.now(TIMEZONE).strftime('%H:%M')}\n\n💬 Сообщение:\n{text}\n\nВыбери действие:")
-        keyboard = [[InlineKeyboardButton("✅ Одобрить и опубликовать", callback_data=f'approve_anon_{anon_id}')], [InlineKeyboardButton("❌ Отклонить", callback_data=f'reject_anon_{anon_id}')]]
-        try:
-            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, reply_markup=InlineKeyboardMarkup(keyboard))
-            print(f"✅ Анонимка ID {anon_id} на модерации от {update.effective_user.first_name}")
-        except Exception as e:
-            print(f"❌ Не удалось отправить на модерацию: {e}")
+        conn.commit(); conn.close()
+        
+        await update.message.reply_text(f"✅ Отправлено на модерацию! ID: {anon_id}", reply_markup=main_menu_keyboard())
+        admin_msg = f"📥 НОВОЕ СООБЩЕНИЕ\n🆔 ID: {anon_id}\n👤 {update.effective_user.first_name}\n👥 {group}\n💬 {update.message.text}"
+        keyboard = [[InlineKeyboardButton("✅ Одобрить", callback_data=f'approve_anon_{anon_id}')], [InlineKeyboardButton("❌ Отклонить", callback_data=f'reject_anon_{anon_id}')]]
+        await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     if context.user_data.get('waiting_for_question'):
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
         c.execute('INSERT INTO questions (user_id, question, date) VALUES (%s, %s, %s)',
-                  (user_id, text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
-        conn.commit()
-        conn.close()
+                  (update.effective_user.id, update.message.text, datetime.datetime.now(TIMEZONE).strftime('%Y-%m-%d %H:%M')))
+        conn.commit(); conn.close()
         context.user_data['waiting_for_question'] = False
         
-        sender_username = update.effective_user.username or "нет"
-        user_link = f"tg://user?id={user_id}"
-        
-        admin_msg = (
-            f"❓ **Новый вопрос от студента**\n\n"
-            f"🆔 ID: `{user_id}`\n"
-            f"👤 Имя: {update.effective_user.first_name}\n"
-            f"🔗 Профиль: [{sender_username}]({user_link})\n"
-            f" Группа: {get_user_group(user_id) or 'не указана'}\n\n"
-            f"💬 **Вопрос:**\n{text}\n\n"
-            f"💡 *Нажми на юзернейм выше, чтобы сразу открыть с ним личный чат!*"
-        )
-        
-        try: 
-            await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode='Markdown')
-        except Exception as e:
-            print(f" Не удалось отправить вопрос админу: {e}")
-            
-        await update.message.reply_text(
-            "✅ Вопрос отправлен админу!\n\n"
-            "Ожидайте ответа в личных сообщениях от администрации.", 
-            reply_markup=main_menu_keyboard()
-        )
+        user_link = f"tg://user?id={update.effective_user.id}"
+        admin_msg = f"❓ **Новый вопрос**\n🆔 ID: `{update.effective_user.id}`\n👤 {update.effective_user.first_name}\n🔗 [{update.effective_user.username or 'нет'}]({user_link})\n👥 {get_user_group(update.effective_user.id) or 'не указана'}\n\n💬 **Вопрос:**\n{update.message.text}"
+        try: await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg, parse_mode='Markdown')
+        except: pass
+        await update.message.reply_text("✅ Вопрос отправлен админу!", reply_markup=main_menu_keyboard())
         return
 
-    if text.lower().startswith('/setgroup'):
-        parts = text.split(' ', 1)
+    if update.message.text.lower().startswith('/setgroup'):
+        parts = update.message.text.split(' ', 1)
         if len(parts) < 2: return await update.message.reply_text("⚠️ Пример: /setgroup 1Ю1/925o")
         group_name = parts[1].strip()
+        if group_name not in GROUPS: return await update.message.reply_text(f"⚠️ Группа '{group_name}' не найдена!")
         conn = psycopg.connect(os.environ.get('DATABASE_URL'))
         c = conn.cursor()
-        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
+        c.execute('INSERT INTO users (user_id, first_name, username) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO NOTHING', (update.effective_user.id, update.effective_user.first_name, update.effective_user.username))
+        c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, update.effective_user.id))
         conn.commit(); conn.close()
         await update.message.reply_text(f"✅ Группа установлена: {group_name}", reply_markup=main_menu_keyboard())
         return
 
-    text_lower = text.lower()
+    text_lower = update.message.text.lower()
     if 'привет' in text_lower:
         await update.message.reply_text(f"👋 Привет, {update.effective_user.first_name}!", reply_markup=main_menu_keyboard())
     elif 'спасибо' in text_lower:
         await update.message.reply_text("😊 Пожалуйста!")
     else:
-        await update.message.reply_text(" Используй кнопки или /help", reply_markup=main_menu_keyboard())
+        await update.message.reply_text("Используй кнопки или /help", reply_markup=main_menu_keyboard())
 
-# ==================== FLASK СЕРВЕР (ДЛЯ RENDER) ====================
-web_app = Flask('')
-@web_app.route('/')
-def home():
-    return "Бот работает!"
-
-def run_flask():
-    web_app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
-# ==================== АДМИН: РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ ====================
-async def poll_results_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    if not context.args:
-        await update.message.reply_text("⚠️ Формат: /poll_results [ID]\nПример: /poll_results 1")
-        return
-    try: poll_id = int(context.args[0])
-    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT question, options, created_at FROM polls WHERE id = %s', (poll_id,))
-    poll = c.fetchone()
-    if not poll:
-        conn.close()
-        return await update.message.reply_text(f"❌ Голосование #{poll_id} не найдено!")
-    question, options_str, created_at = poll
-    options = options_str.split('|')
-    c.execute('SELECT pv.option_index, u.first_name, u.username, u.group_name FROM poll_votes pv JOIN users u ON pv.user_id = u.user_id WHERE pv.poll_id = %s ORDER BY pv.option_index', (poll_id,))
-    votes = c.fetchall()
-    vote_counts = {}
-    for i in range(len(options)): vote_counts[i] = 0
-    for vote in votes: vote_counts[vote[0]] = vote_counts.get(vote[0], 0) + 1
-    total_votes = len(votes)
-    conn.close()
-    text = f"📊 РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ #{poll_id}\n\nВопрос: {question.replace('_', ' ')}\nСоздано: {created_at}\nВсего голосов: {total_votes}\n\n"
-    for i, option in enumerate(options):
-        count = vote_counts.get(i, 0)
-        percent = (count / total_votes * 100) if total_votes > 0 else 0
-        text += f"🔹 {option.replace('_', ' ')}: {count} ({percent:.1f}%)\n"
-    if votes:
-        text += "\n👥 Кто голосовал:\n"
-        for opt_idx, fname, uname, gname in votes:
-            info = f"• {fname}"
-            if gname: info += f" ({gname})"
-            if uname and uname != "None": info += f" @{uname}"
-            text += f"{info} → {options[opt_idx].replace('_', ' ')}\n"
-    await update.message.reply_text(text)
-
-# ==================== АДМИН: ИСТОРИЯ ГОЛОСОВАНИЙ ====================
-async def poll_history_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("⛔ Только для админа!")
-        return
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT id, question, options, created_at, is_active FROM polls ORDER BY created_at DESC LIMIT 20')
-    polls = c.fetchall()
-    conn.close()
-    if not polls: return await update.message.reply_text("🗳️ Нет голосований")
-    text = "🗳️ ИСТОРИЯ ГОЛОСОВАНИЙ (последние 20)\n\n"
-    for pid, q, opts, created, active in polls:
-        options = opts.split('|')
-        status = "✅ Активно" if active == 1 else "🔴 Завершено"
-        conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM poll_votes WHERE poll_id = %s', (pid,))
-        vcount = c.fetchone()[0]
-        conn.close()
-        text += f"#{pid} ({status})\n{q.replace('_', ' ')}\n📅 {created} | 👥 {vcount} голосов\nВарианты: {', '.join([o.replace('_', ' ') for o in options[:3]])}\nДетали: /poll_results {pid}\n\n" + "-" * 40 + "\n\n"
-    await update.message.reply_text(text)
-
-# ==================== КОМАНДА /setgroup ====================
+# ==================== КОМАНДЫ МЕНЮ ====================
 async def setgroup_command(update: Update, context):
-    user_id = update.effective_user.id
     if not context.args: return await update.message.reply_text("⚠️ Пример: /setgroup 1Ю1/925o")
     group_name = context.args[0].strip()
     if group_name not in GROUPS: return await update.message.reply_text(f"⚠️ Группа '{group_name}' не найдена!")
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
-    c.execute('INSERT INTO users (user_id, first_name, username) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO NOTHING', (user_id, update.effective_user.first_name, update.effective_user.username))
-    c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, user_id))
-    conn.commit()
-    conn.close()
+    c.execute('INSERT INTO users (user_id, first_name, username) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO NOTHING', (update.effective_user.id, update.effective_user.first_name, update.effective_user.username))
+    c.execute('UPDATE users SET group_name = %s WHERE user_id = %s', (group_name, update.effective_user.id))
+    conn.commit(); conn.close()
     await update.message.reply_text(f"✅ Отлично! Твоя группа теперь: {group_name}", reply_markup=main_menu_keyboard())
-# ==================== ЭКСПОРТ БАЗЫ ДАННЫХ В CSV ====================
-async def export_users_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("⛔ Только для админа!")
-    
-    await update.message.reply_text(" Формирую файл с базой данных... Это займет пару секунд.")
-    
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT user_id, first_name, username, group_name, full_name, phone, is_verified, last_active FROM users ORDER BY group_name')
-    users = c.fetchall()
-    conn.close()
-    
-    if not users:
-        return await update.message.reply_text("⚠️ База данных пуста. Нечего экспортировать.")
 
-    # Создаем временный CSV файл в безопасной папке Render
-    file_path = '/tmp/students_export.csv'
-    
-    # utf-8-sig нужен, чтобы Excel правильно читал русский язык
-    with open(file_path, 'w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.writer(f)
-        # Заголовки таблицы
-        writer.writerow(['Telegram ID', 'Имя', 'Username', 'Группа', 'ФИО', 'Телефон', 'Верифицирован (1=Да)', 'Последняя активность'])
-        # Записываем данные
-        for u in users:
-            writer.writerow(u)
-            
-    # Отправляем файл в Telegram
-    with open(file_path, 'rb') as f:
-        await update.message.reply_document(
-            document=f, 
-            filename='База_студентов_NK_College.csv', 
-            caption=f"✅ Готово! Экспортировано {len(users)} студентов.\n\nОткройте файл в Excel или Google Таблицах."
-        )
-        
-    # Удаляем временный файл, чтобы не засорять память
-    os.remove(file_path)
-
-# ==================== АДМИН: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
-# ==================== РЕДАКТИРОВАНИЕ ПОЛЬЗОВАТЕЛЯ ====================
-async def edit_user_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("⛔ Только для админа!")
-    
-    if len(context.args) < 3:
-        return await update.message.reply_text(
-            "⚠️ Формат команды:\n"
-            "/edit_user [ID] fio [новое ФИО]\n"
-            "/edit_user [ID] group [новая группа]\n"
-            "/edit_user [ID] phone [новый телефон]\n\n"
-            "Пример: /edit_user 8688778044 fio Иванов Иван Иванович"
-        )
-    
-    try:
-        user_id = int(context.args[0])
-    except ValueError:
-        return await update.message.reply_text("️ ID должен быть числом!")
-    
-    field = context.args[1].lower()
-    new_value = ' '.join(context.args[2:])
-    
-    # Проверяем, что поле существует
-    valid_fields = {'fio': 'full_name', 'group': 'group_name', 'phone': 'phone'}
-    if field not in valid_fields:
-        return await update.message.reply_text(
-            f"️ Неверное поле! Доступные: fio, group, phone\n"
-            f"Пример: /edit_user {user_id} fio Иванов Иван Иванович"
-        )
-    
-    db_field = valid_fields[field]
-    
-    # Проверяем, существует ли пользователь
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT first_name, full_name, group_name, phone FROM users WHERE user_id = %s', (user_id,))
-    user = c.fetchone()
-    
-    if not user:
-        conn.close()
-        return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
-    
-    # Обновляем данные
-    c.execute(f'UPDATE users SET {db_field} = %s WHERE user_id = %s', (new_value, user_id))
-    conn.commit()
-    conn.close()
-    
-    field_names = {'fio': 'ФИО', 'group': 'группу', 'phone': 'телефон'}
-    await update.message.reply_text(
-        f"✅ Данные обновлены!\n\n"
-        f"🆔 ID: {user_id}\n"
-        f"📝 Изменено: {field_names[field]}\n"
-        f"📄 Новое значение: {new_value}\n\n"
-        f"👤 Было: {user[0]} | {user[1]} | {user[2]} | {user[3]}"
-    )
-async def delete_user_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
-    if not context.args: return await update.message.reply_text("⚠️ Формат: /delete_user [ID]")
-    try: user_id = int(context.args[0])
-    except: return await update.message.reply_text("⚠️ ID должен быть числом!")
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT first_name, full_name, group_name FROM users WHERE user_id = %s', (user_id,))
-    user = c.fetchone()
-    if not user:
-        conn.close()
-        return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден в базе!")
-    c.execute('DELETE FROM users WHERE user_id = %s', (user_id,))
-    conn.commit()
-    conn.close()
-    await update.message.reply_text(f"✅ Пользователь удален из базы!\n\n🆔 ID: {user_id}\n👤 Имя: {user[0]}\n👤 ФИО: {user[1]}\n👥 Группа: {user[2]}\n\n⚠️ Если он напишет /start снова — регистрация пройдет заново.")
-
-# ==================== АДМИН: АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ ====================
-async def active_users_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
-    days = 7
-    if context.args:
-        try: days = int(context.args[0])
-        except: pass
-    cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE last_active >= %s ORDER BY last_active DESC LIMIT 50', (cutoff_date,))
-    users = c.fetchall()
-    conn.close()
-    if not users: return await update.message.reply_text(f"📊 Нет активных пользователей за последние {days} дней.")
-    text = f"📊 АКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (за {days} дней):\n\n"
-    for uid, fname, full, grp, last in users:
-        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last}\n\n"
-    await update.message.reply_text(text, parse_mode='Markdown')
-
-# ==================== АДМИН: НЕАКТИВНЫЕ ПОЛЬЗОВАТЕЛИ ====================
-async def inactive_users_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
-    days = 30
-    if context.args:
-        try: days = int(context.args[0])
-        except: pass
-    cutoff_date = (datetime.datetime.now(TIMEZONE) - datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M')
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute("SELECT user_id, first_name, full_name, group_name, last_active FROM users WHERE (last_active < %s OR last_active IS NULL) AND is_verified = 1 ORDER BY last_active ASC LIMIT 50", (cutoff_date,))
-    users = c.fetchall()
-    conn.close()
-    if not users: return await update.message.reply_text(f"✅ Все пользователи активны за последние {days} дней!")
-    text = f"😴 НЕАКТИВНЫЕ ПОЛЬЗОВАТЕЛИ (не заходили {days}+ дней):\n\n"
-    for uid, fname, full, grp, last in users:
-        text += f"🆔 `{uid}` | {full or fname} | {grp}\n   🕐 Последняя активность: {last or 'никогда'}\n\n"
-    text += "💡 Чтобы удалить: /delete_user [ID]"
-    await update.message.reply_text(text, parse_mode='Markdown')
-
-# ==================== ОТЛОЖЕННАЯ РАССЫЛКА ====================
-async def send_later_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("⛔ Только для админа!")
-    if not update.message.reply_to_message:
-        return await update.message.reply_text("⚠️ Сначала ответь на сообщение (текст, фото или видео), а потом напиши команду.")
-    if len(context.args) < 2:
-        return await update.message.reply_text("⚠️ Укажи дату и время! Пример: /send_later 31.08.2026 14:05")
-    
-    date_str = context.args[0]
-    time_str = context.args[1]
-    datetime_str = f"{date_str} {time_str}"
-    try:
-        target_dt = datetime.datetime.strptime(datetime_str, "%d.%m.%Y %H:%M")
-        target_dt = TIMEZONE.localize(target_dt)
-    except ValueError:
-        return await update.message.reply_text("⚠️ Неверный формат! Используй: /send_later ДД.ММ.ГГГГ ЧЧ:ММ")
-    
-    now = datetime.datetime.now(TIMEZONE)
-    if target_dt <= now:
-        return await update.message.reply_text("⚠️ Время должно быть в будущем!")
-    
-    delay_seconds = (target_dt - now).total_seconds()
-    msg = update.message.reply_to_message
-    text = msg.text or msg.caption or ""
-    file_type = None
-    file_id = None
-    if msg.photo:
-        file_type = 'photo'
-        file_id = msg.photo[-1].file_id
-    elif msg.video:
-        file_type = 'video'
-        file_id = msg.video.file_id
-    elif msg.document:
-        file_type = 'document'
-        file_id = msg.document.file_id
-
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('INSERT INTO scheduled_messages (text, file_type, file_id, caption, send_at) VALUES (%s, %s, %s, %s, %s) RETURNING id', (text, file_type, file_id, msg.caption, target_dt.strftime('%d.%m.%Y %H:%M')))
-    msg_id = c.fetchone()[0]
-    conn.commit()
-    conn.close()
-
-    context.job_queue.run_once(send_scheduled_job, delay_seconds, data={'msg_id': msg_id})
-    await update.message.reply_text(f"✅ Сообщение запланировано на {target_dt.strftime('%d.%m.%Y в %H:%M')}! ID: {msg_id}")
-
-# ==================== ОТМЕНА ЗАПЛАНИРОВАННОЙ РАССЫЛКИ ====================
-async def cancel_send_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("⛔ Только для админа!")
-    
-    if not context.args:
-        return await update.message.reply_text("⚠️ Формат: /cancel_send [ID]\nПример: /cancel_send 5")
-    
-    try:
-        msg_id = int(context.args[0])
-    except ValueError:
-        return await update.message.reply_text("⚠️ ID должен быть числом!")
-
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    
-    c.execute('SELECT text, send_at FROM scheduled_messages WHERE id = %s', (msg_id,))
-    msg_data = c.fetchone()
-
-    if not msg_data:
-        conn.close()
-        return await update.message.reply_text(f"❌ Запланированное сообщение с ID {msg_id} не найдено или уже было отправлено!")
-
-    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
-    conn.commit()
-    conn.close()
-
-    await update.message.reply_text(f"✅ Запланированная рассылка ID {msg_id} успешно отменена!\n\nСообщение не будет отправлено студентам.")
-
-# ==================== УТРЕННЯЯ РАССЫЛКА "ДОБРОЕ УТРО" ====================
-async def good_morning_job(context):
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    # Берем только тех, кто прошел регистрацию (is_verified = 1)
-    c.execute('SELECT user_id, first_name FROM users WHERE is_verified = 1')
-    users = c.fetchall()
-    conn.close()
-
-    success = 0
-    failed = 0
-    
-    for user_id, first_name in users:
-        try:
-            text = (
-                f"☀️ Доброе утро, {first_name}!\n\n"
-                f"Напоминаю: не забудь проверить расписание и домашние задания!\n\n"
-                f"👇 Быстрые команды:"
-            )
-            # Отправляем сообщение с кнопками главного меню
-            await context.bot.send_message(
-                chat_id=user_id, 
-                text=text, 
-                reply_markup=main_menu_keyboard()
-            )
-            success += 1
-            # Небольшая задержка, чтобы Telegram не заблокировал бота за спам
-            await asyncio.sleep(0.05) 
-        except Exception as e:
-            failed += 1
-            print(f"❌ Ошибка отправки пользователю {user_id}: {e}")
-
-    # Отправляем тебе отчет админу
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID, 
-            text=f"✅ Утренняя рассылка завершена!\n📨 Успешно: {success}\n❌ Ошибок (заблокировали бота): {failed}"
-        )
-    except:
-        pass
-async def send_scheduled_job(context):
-    msg_id = context.job.data['msg_id']
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT text, file_type, file_id, caption FROM scheduled_messages WHERE id = %s', (msg_id,))
-    msg_data = c.fetchone()
-    c.execute('DELETE FROM scheduled_messages WHERE id = %s', (msg_id,))
-    conn.commit()
-    conn.close()
-    if not msg_data: return
-    
-    text, file_type, file_id, caption = msg_data
-    users = get_all_users()
-    for user_data in users:
-        user_id = user_data[0]
-        try:
-            if file_type == 'photo': await context.bot.send_photo(user_id, file_id, caption=caption or text)
-            elif file_type == 'video': await context.bot.send_video(user_id, file_id, caption=caption or text)
-            elif file_type == 'document': await context.bot.send_document(user_id, file_id, caption=caption or text)
-            else: await context.bot.send_message(user_id, text=text)
-            await asyncio.sleep(0.05)
-        except Exception as e:
-            print(f"Ошибка отправки отложенного сообщения пользователю {user_id}: {e}")
-    await context.bot.send_message(ADMIN_ID, f"✅ Отложенная рассылка ID {msg_id} успешно отправлена всем студентам!")
-
-# ==================== КОМАНДЫ ДЛЯ КНОПОК МЕНЮ ====================
 async def schedule_command(update: Update, context):
     group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
-        return
+    if not group: return await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     c.execute("SELECT time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = 'ОБЩЕЕ') AND day = %s ORDER BY time", (group, get_day_name()))
-    schedule = c.fetchall()
-    conn.close()
-    if not schedule:
-        text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
+    schedule = c.fetchall(); conn.close()
+    if not schedule: text = f"📅 На сегодня ({get_day_name()}) пар нет! 🎉"
     else:
         text = f"📅 Расписание на {get_day_name()}\n👥 {group}\n\n"
-        for i, (time, subj, teach, room) in enumerate(schedule, 1):
-            text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
+        for i, (time, subj, teach, room) in enumerate(schedule, 1): text += f"{i}. {time} - {subj}\n   👨‍🏫 {teach} | 🚪 {room}\n"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 async def schedule_week_command(update: Update, context):
     group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
-        return
+    if not group: return await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
     c = conn.cursor()
     c.execute("SELECT day, time, subject, teacher, room FROM schedule WHERE (group_name = %s OR group_name = 'ОБЩЕЕ') ORDER BY CASE day WHEN 'Понедельник' THEN 1 WHEN 'Вторник' THEN 2 WHEN 'Среда' THEN 3 WHEN 'Четверг' THEN 4 WHEN 'Пятница' THEN 5 WHEN 'Суббота' THEN 6 WHEN 'Воскресенье' THEN 7 END, time", (group,))
-    schedule = c.fetchall()
-    conn.close()
-    if not schedule:
-        text = f"📅 Расписание для {group} пока не добавлено."
+    schedule = c.fetchall(); conn.close()
+    if not schedule: text = f"📅 Расписание для {group} пока не добавлено."
     else:
         text = f"📅 Расписание на неделю\n👥 {group}\n\n"
         cur_day = None
@@ -1473,244 +1086,91 @@ async def schedule_week_command(update: Update, context):
             text += f"  • {time} - {subj} ({teach}, ауд. {room})\n"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
-async def grades_command(update: Update, context):
-    await update.message.reply_text("📊 Оценок пока нет.", reply_markup=main_menu_keyboard())
+async def homework_command(update: Update, context):
+    group = get_user_group(update.effective_user.id)
+    if not group: return await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute("SELECT subject, task, deadline FROM homework WHERE (group_name = %s OR group_name = 'ОБЩЕЕ') ORDER BY created_at DESC", (group,))
+    hw = c.fetchall(); conn.close()
+    if not hw: text = f"📝 Домашних заданий для {group} пока нет!"
+    else:
+        text = f"📝 Домашние задания\n👥 {group}\n\n"
+        for subj, task, dead in hw: text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
+    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
-async def gpa_command(update: Update, context):
-    await update.message.reply_text("🧮 Оценок пока нет.", reply_markup=main_menu_keyboard())
-
-async def teachers_command(update: Update, context):
-    await update.message.reply_text("👨‍🏫 Список преподавателей пока пуст.", reply_markup=main_menu_keyboard())
-
-async def exams_command(update: Update, context):
-    await update.message.reply_text("🎓 Экзаменов пока не запланировано.", reply_markup=main_menu_keyboard())
-
-async def news_command(update: Update, context):
-    await update.message.reply_text("📰 Новостей пока нет.", reply_markup=main_menu_keyboard())
-
+async def grades_command(update: Update, context): await update.message.reply_text("📊 Оценок пока нет.", reply_markup=main_menu_keyboard())
+async def gpa_command(update: Update, context): await update.message.reply_text("🧮 Оценок пока нет.", reply_markup=main_menu_keyboard())
+async def teachers_command(update: Update, context): await update.message.reply_text("👨‍🏫 Список преподавателей пока пуст.", reply_markup=main_menu_keyboard())
+async def exams_command(update: Update, context): await update.message.reply_text("🎓 Экзаменов пока не запланировано.", reply_markup=main_menu_keyboard())
+async def news_command(update: Update, context): await update.message.reply_text("📰 Новостей пока нет.", reply_markup=main_menu_keyboard())
 async def weather_command(update: Update, context):
     try:
         r = requests.get("https://api.open-meteo.com/v1/forecast?latitude=55.75&longitude=37.61&current_weather=true")
         d = r.json()['current_weather']
         text = f"🌤️ Погода в Москве\n🌡️ {d['temperature']}°C\n💨 Ветер: {d['windspeed']} км/ч"
-    except:
-        text = "❌ Не удалось получить погоду."
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-
-async def homework_command(update: Update, context):
-    group = get_user_group(update.effective_user.id)
-    if not group:
-        await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup")
-        return
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute("SELECT subject, task, deadline FROM homework WHERE (group_name = %s OR group_name = 'ОБЩЕЕ') ORDER BY created_at DESC", (group,))
-    hw = c.fetchall()
-    conn.close()
-    if not hw:
-        text = f"📝 Домашних заданий для {group} пока нет!"
-    else:
-        text = f"📝 Домашние задания\n👥 {group}\n\n"
-        for subj, task, dead in hw:
-            text += f"📚 {subj}\n   📝 {task}\n   ⏰ {dead}\n\n"
+    except: text = "❌ Не удалось получить погоду."
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 async def contacts_command(update: Update, context):
-    text = (
-        "📍 Контакты Налогового колледжа\n\n"
-        "👩‍💼 Директор: Кузьминская Юлия Борисовна\n\n"
-        "🏢 Адрес: г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n"
-        "(м. Хорошево, м. Полежаевская)\n\n"
-        "🕒 Режим работы:\n"
-        "Пн-Пт: 09:00 - 19:30\n"
-        "Сб: 10:00 - 14:00\n"
-        "Вс: выходной\n\n"
-        "📞 Телефоны:\n"
-        "Приемная комиссия: +7 (495) 568-07-07\n"
-        "Секретарь: +7 (499) 191-00-69\n\n"
-        "🔗 Полезные ссылки:\n"
-        "🌐 Официальный сайт: https://xn----7sbgdhfiukffarqbe1t.xn--p1ai/\n"
-        "💻 Личный кабинет абитуриента: https://lk-nk.ru\n"
-        "🎓 Дистанционное обучение: https://distant-nk.ru"
-    )
+    text = "📍 Контакты НК\n👩‍💼 Директор: Кузьминская Ю.Б.\n🏢 г. Москва, ул. 3-я Хорошевская, д. 2, стр. 1\n📞 +7 (495) 568-07-07"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 async def practice_command(update: Update, context):
-    text = (
-        "💼 Партнеры по практике\n\n"
-        "Наши студенты проходят практику в ведущих организациях:\n\n"
-        "🏛️ Федеральная налоговая служба (ФНС)\n"
-        "🏦 ПАО «Сбербанк»\n"
-        "🏦 ПАО «Московский кредитный банк»\n"
-        "🏦 ПАО «Банк УРАЛСИБ»\n"
-        "⚖️ Департамент труда и соцзащиты г. Москвы\n"
-        "🤝 Ассоциация налоговых консультантов\n"
-        "🏢 ООО «Международная консалтинговая группа»\n\n"
-        "📌 Полный список мест практики доступен в учебной части колледжа."
-    )
+    text = "💼 Партнеры по практике:\n🏛️ ФНС\n🏦 Сбербанк, МКБ, УРАЛСИБ\n⚖️ Департамент труда и соцзащиты г. Москвы"
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
-async def profile_command(update: Update, context):
-    user_id = update.effective_user.id
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    c.execute('SELECT first_name, username, group_name, full_name, phone, is_verified, last_active FROM users WHERE user_id = %s', (user_id,))
-    user = c.fetchone()
-    conn.close()
-    
-    if not user:
-        text = "️ Ты не зарегистрирован в системе.\n\nНапиши /start, чтобы пройти регистрацию."
-    else:
-        first_name, username, group_name, full_name, phone, is_verified, last_active = user
-        status = "✅ Подтвержден" if is_verified == 1 else "⏳ Ожидает подтверждения"
-        
-        text = (
-            f"👤 **Твой профиль**\n\n"
-            f"📛 **Имя:** {first_name}\n"
-            f" **Username:** @{username or 'не указан'}\n"
-            f"👥 **Группа:** {group_name or 'не указана'}\n"
-            f"📝 **ФИО:** {full_name or 'не указано'}\n"
-            f"📞 **Телефон:** {phone or 'не указан'}\n"
-            f"🔐 **Статус:** {status}\n"
-            f"🕐 **Последняя активность:** {last_active or 'никогда'}\n\n"
-            f"💡 Чтобы изменить данные, напиши администратору через команду /anon_chat."
-        )
-    
-    await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
-# ==================== ЗАГРУЗКА РАСПИСАНИЯ ИЗ CSV ====================
-async def upload_schedule_command(update: Update, context):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("⛔ Только для админа!")
-    
-    if not update.message.document:
-        return await update.message.reply_text(
-            "⚠️ Отправь мне файл с расписанием в формате CSV.\n\n"
-            "Файл должен иметь столбцы: Группа, День, Время, Предмет, Преподаватель, Аудитория"
-        )
-    
-    # Скачиваем файл
-    file = await context.bot.get_file(update.message.document.file_id)
-    file_path = '/tmp/schedule_upload.csv'
-    await file.download_to_drive(file_path)
-    
-    await update.message.reply_text("📥 Читаю файл...")
-    
-    # Читаем CSV и загружаем в базу
-    import csv
-    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
-    c = conn.cursor()
-    
-    # Очищаем старое расписание (опционально - можно закомментировать если хочешь добавлять, а не заменять)
-    c.execute('DELETE FROM schedule')
-    conn.commit()
-    
-    count = 0
-    errors = 0
-    
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    group = row.get('Группа', '').strip()
-                    day = row.get('День', '').strip()
-                    time = row.get('Время', '').strip()
-                    subject = row.get('Предмет', '').strip()
-                    teacher = row.get('Преподаватель', '').strip()
-                    room = row.get('Аудитория', '').strip()
-                    
-                    if group and day and time and subject:
-                        c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
-                                     VALUES (%s, %s, %s, %s, %s, %s)''',
-                                  (group, day, time, subject, teacher, room))
-                        count += 1
-                except Exception as e:
-                    errors += 1
-                    print(f"Ошибка в строке: {e}")
-        
-        conn.commit()
-        conn.close()
-        
-        await update.message.reply_text(
-            f"✅ Расписание успешно загружено!\n\n"
-            f"📚 Добавлено пар: {count}\n"
-            f"❌ Ошибок: {errors}\n\n"
-            f"Теперь студенты могут смотреть расписание командой /schedule"
-        )
-        
-    except Exception as e:
-        conn.close()
-        await update.message.reply_text(f"❌ Ошибка при чтении файла: {e}")
-    
-    # Удаляем временный файл
-    import os
-    if os.path.exists(file_path):
-        os.remove(file_path)
 async def help_command(update: Update, context):
-    text = (
-        "🆘 Помощь\n\n"
-        "📱 Основные команды:\n"
-        "• /start - Главное меню\n"
-        "• /setgroup [ГРУППА] - Выбрать группу\n"
-        "• /schedule - Расписание на день\n"
-        "• /schedule_week - Расписание на неделю\n"
-        "• /homework - Домашние задания\n"
-        "• /grades - Оценки\n"
-        "• /gpa - Средний балл\n"
-        "• /teachers - Преподаватели\n"
-        "• /exams - Экзамены\n"
-        "• /news - Новости\n"
-        "• /weather - Погода\n"
-        "• /contacts - Контакты колледжа\n"
-        "• /practice - Практика\n"
-        "• /anon_chat - Анонимный чат\n\n"
-        "❓ Вопросы:\n"
-        "• Напиши свой вопрос, и он уйдет администратору\n\n"
-        "⚙️ Настройки:\n"
-        "• /setgroup - выбрать или изменить группу"
-    )
+    text = ("🆘 Помощь\n\n📱 Основные команды:\n• /start - Главное меню\n• /setgroup [ГРУППА] - Выбрать группу\n• /schedule - Расписание на день\n• /schedule_week - Расписание на неделю\n• /homework - Домашние задания\n• /grades - Оценки\n• /gpa - Средний балл\n• /teachers - Преподаватели\n• /exams - Экзамены\n• /news - Новости\n• /weather - Погода\n• /contacts - Контакты колледжа\n• /practice - Практика\n• /anon_chat - Анонимный чат\n\n❓ Вопросы:\n• Напиши свой вопрос, и он уйдет администратору\n\n⚙️ Настройки:\n• /setgroup - выбрать или изменить группу")
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 async def anon_chat_command(update: Update, context):
     group = get_user_group(update.effective_user.id)
-    if not group:
-        text = "⚠️ Сначала выбери группу командой /setgroup\n\nБез группы анонимный чат не работает."
-        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
-        return
+    if not group: return await update.message.reply_text("⚠️ Сначала выбери группу командой /setgroup\n\nБез группы анонимный чат не работает.", reply_markup=main_menu_keyboard())
     context.user_data['waiting_for_anon'] = True
     context.user_data['anon_recipient'] = 'all'
-    text = (
-        f"💬 Анонимный чат\n\n"
-        f"📢 Хочешь почитать, что пишут другие? Заходи в наш канал:\n"
-        f"👉 {ANON_CHANNEL_LINK}\n\n"
-        f"⚠️ ПРАВИЛА:\n"
-        f"• Только для учебы и конструктивных вопросов\n"
-        f"• За оскорбления, буллинг и спам — бан\n"
-        f"• Все сообщения проходят модерацию администратором\n\n"
-        f"Напиши своё сообщение следующим текстом.\n"
-        f"После одобрения админом оно будет анонимно отправлено всем студентам колледжа.\n\n"
-        f"Чтобы отменить, нажми /start"
-    )
+    text = f"💬 Анонимный чат\n\n📢 Канал: {ANON_CHANNEL_LINK}\n\n⚠️ ПРАВИЛА:\n• Только для учебы\n• Все сообщения проходят модерацию\n\nНапиши своё сообщение следующим текстом."
     await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+
+# ==================== FLASK СЕРВЕР (ДЛЯ RENDER) ====================
+web_app = Flask('')
+@web_app.route('/')
+def home(): return "Бот работает!"
+def run_flask(): web_app.run(host='0.0.0.0', port=8080)
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
 
 # ==================== ЗАПУСК ====================
 def main():
     init_db()
     keep_alive()
     app = Application.builder().token(BOT_TOKEN).job_queue(JobQueue()).build()
-        # Настраиваем ежедневную рассылку в 07:00 по Москве (кроме воскресенья)
-    # days: 0=Пн, 1=Вт, 2=Ср, 3=Чт, 4=Пт, 5=Сб. (6=Вс, поэтому его не пишем)
-    app.job_queue.run_daily(
-        good_morning_job,
-        time=datetime.time(hour=7, minute=0, tzinfo=TIMEZONE),
-        days=(0, 1, 2, 3, 4, 5)
-    )
+    
+    # Утренняя рассылка в 07:00 (Пн-Сб)
+    app.job_queue.run_daily(good_morning_job, time=datetime.time(hour=7, minute=0, tzinfo=TIMEZONE), days=(0, 1, 2, 3, 4, 5))
     print("⏰ Утренняя рассылка запланирована на 07:00 (Пн-Сб)")
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
+    app.add_handler(CommandHandler("profile", profile_command))
+    app.add_handler(CommandHandler("export_users", export_users_command))
+    app.add_handler(CommandHandler("edit_user", edit_user_command))
+    app.add_handler(CommandHandler("delete_user", delete_user_command))
+    app.add_handler(CommandHandler("active_users", active_users_command))
+    app.add_handler(CommandHandler("inactive_users", inactive_users_command))
+    app.add_handler(CommandHandler("upload_schedule", upload_schedule_command))
+    app.add_handler(CommandHandler("add_schedule", add_schedule_command))
+    app.add_handler(CommandHandler("view_schedule", view_schedule_command))
+    app.add_handler(CommandHandler("delete_schedule", delete_schedule_command))
+    app.add_handler(CommandHandler("add_homework", add_homework_command))
+    app.add_handler(CommandHandler("view_homework", view_homework_command))
+    app.add_handler(CommandHandler("delete_homework", delete_homework_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("broadcast_cancel", broadcast_cancel_command))
+    app.add_handler(CommandHandler("send_later", send_later_command))
+    app.add_handler(CommandHandler("cancel_send", cancel_send_command))
     app.add_handler(CommandHandler("create_poll", create_poll_command))
     app.add_handler(CommandHandler("poll_results", poll_results_command))
     app.add_handler(CommandHandler("poll_history", poll_history_command))
@@ -1727,24 +1187,9 @@ def main():
     app.add_handler(CommandHandler("contacts", contacts_command))
     app.add_handler(CommandHandler("practice", practice_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("upload_schedule", upload_schedule_command))
-    app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("anon_chat", anon_chat_command))
-    app.add_handler(CommandHandler("add_schedule", add_schedule_command))
-    app.add_handler(CommandHandler("view_schedule", view_schedule_command))
-    app.add_handler(CommandHandler("delete_schedule", delete_schedule_command))
-    app.add_handler(CommandHandler("add_homework", add_homework_command))
-    app.add_handler(CommandHandler("view_homework", view_homework_command))
-    app.add_handler(CommandHandler("delete_homework", delete_homework_command))
-    app.add_handler(CommandHandler("export_users", export_users_command))
-    app.add_handler(CommandHandler("edit_user", edit_user_command))
-    app.add_handler(CommandHandler("delete_user", delete_user_command))
-    app.add_handler(CommandHandler("active_users", active_users_command))
-    app.add_handler(CommandHandler("inactive_users", inactive_users_command))
-    app.add_handler(CommandHandler("send_later", send_later_command))
-    app.add_handler(CommandHandler("cancel_send", cancel_send_command))
+    
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_registration_message))
     app.add_handler(MessageHandler((filters.TEXT | filters.CONTACT) & ~filters.COMMAND, handle_message))
 
     print("🤖 Бот запущен!")
