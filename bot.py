@@ -1577,6 +1577,75 @@ async def profile_command(update: Update, context):
         )
     
     await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode='Markdown')
+# ==================== ЗАГРУЗКА РАСПИСАНИЯ ИЗ CSV ====================
+async def upload_schedule_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("⛔ Только для админа!")
+    
+    if not update.message.document:
+        return await update.message.reply_text(
+            "⚠️ Отправь мне файл с расписанием в формате CSV.\n\n"
+            "Файл должен иметь столбцы: Группа, День, Время, Предмет, Преподаватель, Аудитория"
+        )
+    
+    # Скачиваем файл
+    file = await context.bot.get_file(update.message.document.file_id)
+    file_path = '/tmp/schedule_upload.csv'
+    await file.download_to_drive(file_path)
+    
+    await update.message.reply_text("📥 Читаю файл...")
+    
+    # Читаем CSV и загружаем в базу
+    import csv
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    
+    # Очищаем старое расписание (опционально - можно закомментировать если хочешь добавлять, а не заменять)
+    c.execute('DELETE FROM schedule')
+    conn.commit()
+    
+    count = 0
+    errors = 0
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    group = row.get('Группа', '').strip()
+                    day = row.get('День', '').strip()
+                    time = row.get('Время', '').strip()
+                    subject = row.get('Предмет', '').strip()
+                    teacher = row.get('Преподаватель', '').strip()
+                    room = row.get('Аудитория', '').strip()
+                    
+                    if group and day and time and subject:
+                        c.execute('''INSERT INTO schedule (group_name, day, time, subject, teacher, room) 
+                                     VALUES (%s, %s, %s, %s, %s, %s)''',
+                                  (group, day, time, subject, teacher, room))
+                        count += 1
+                except Exception as e:
+                    errors += 1
+                    print(f"Ошибка в строке: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        await update.message.reply_text(
+            f"✅ Расписание успешно загружено!\n\n"
+            f"📚 Добавлено пар: {count}\n"
+            f"❌ Ошибок: {errors}\n\n"
+            f"Теперь студенты могут смотреть расписание командой /schedule"
+        )
+        
+    except Exception as e:
+        conn.close()
+        await update.message.reply_text(f"❌ Ошибка при чтении файла: {e}")
+    
+    # Удаляем временный файл
+    import os
+    if os.path.exists(file_path):
+        os.remove(file_path)
 async def help_command(update: Update, context):
     text = (
         "🆘 Помощь\n\n"
@@ -1658,6 +1727,7 @@ def main():
     app.add_handler(CommandHandler("contacts", contacts_command))
     app.add_handler(CommandHandler("practice", practice_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("upload_schedule", upload_schedule_command))
     app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("anon_chat", anon_chat_command))
     app.add_handler(CommandHandler("add_schedule", add_schedule_command))
