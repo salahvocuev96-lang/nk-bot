@@ -1369,6 +1369,46 @@ async def cancel_send_command(update: Update, context):
 
     await update.message.reply_text(f"✅ Запланированная рассылка ID {msg_id} успешно отменена!\n\nСообщение не будет отправлено студентам.")
 
+# ==================== УТРЕННЯЯ РАССЫЛКА "ДОБРОЕ УТРО" ====================
+async def good_morning_job(context):
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    # Берем только тех, кто прошел регистрацию (is_verified = 1)
+    c.execute('SELECT user_id, first_name FROM users WHERE is_verified = 1')
+    users = c.fetchall()
+    conn.close()
+
+    success = 0
+    failed = 0
+    
+    for user_id, first_name in users:
+        try:
+            text = (
+                f"☀️ Доброе утро, {first_name}!\n\n"
+                f"Напоминаю: не забудь проверить расписание и домашние задания!\n\n"
+                f"👇 Быстрые команды:"
+            )
+            # Отправляем сообщение с кнопками главного меню
+            await context.bot.send_message(
+                chat_id=user_id, 
+                text=text, 
+                reply_markup=main_menu_keyboard()
+            )
+            success += 1
+            # Небольшая задержка, чтобы Telegram не заблокировал бота за спам
+            await asyncio.sleep(0.05) 
+        except Exception as e:
+            failed += 1
+            print(f"❌ Ошибка отправки пользователю {user_id}: {e}")
+
+    # Отправляем тебе отчет админу
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID, 
+            text=f"✅ Утренняя рассылка завершена!\n📨 Успешно: {success}\n❌ Ошибок (заблокировали бота): {failed}"
+        )
+    except:
+        pass
 async def send_scheduled_job(context):
     msg_id = context.job.data['msg_id']
     conn = psycopg.connect(os.environ.get('DATABASE_URL'))
@@ -1589,6 +1629,14 @@ def main():
     init_db()
     keep_alive()
     app = Application.builder().token(BOT_TOKEN).job_queue(JobQueue()).build()
+        # Настраиваем ежедневную рассылку в 07:00 по Москве (кроме воскресенья)
+    # days: 0=Пн, 1=Вт, 2=Ср, 3=Чт, 4=Пт, 5=Сб. (6=Вс, поэтому его не пишем)
+    app.job_queue.run_daily(
+        good_morning_job,
+        time=datetime.time(hour=7, minute=0, tzinfo=TIMEZONE),
+        days=(0, 1, 2, 3, 4, 5)
+    )
+    print("⏰ Утренняя рассылка запланирована на 07:00 (Пн-Сб)")
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_command))
