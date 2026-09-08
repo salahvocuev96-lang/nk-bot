@@ -685,6 +685,7 @@ async def button_handler(update: Update, context):
             "• /poll_results [ID] - узнать, кто проголосовал\n\n"
             "👥 Управление пользователями:\n"
             "• /export_users - выгрузить базу студентов в Excel (CSV)\n"
+            "• /edit_user [ID] fio/group/phone [значение] - изменить данные студента\n"
             "• /delete_user [ID] - удалить пользователя из базы\n"
             "• /active_users [дней] - кто был активен (по умолч. 7 дней)\n"
             "• /inactive_users [дней] - кто не заходил (по умолч. 30 дней)\n\n"
@@ -1181,6 +1182,61 @@ async def export_users_command(update: Update, context):
     os.remove(file_path)
 
 # ==================== АДМИН: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
+# ==================== РЕДАКТИРОВАНИЕ ПОЛЬЗОВАТЕЛЯ ====================
+async def edit_user_command(update: Update, context):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("⛔ Только для админа!")
+    
+    if len(context.args) < 3:
+        return await update.message.reply_text(
+            "⚠️ Формат команды:\n"
+            "/edit_user [ID] fio [новое ФИО]\n"
+            "/edit_user [ID] group [новая группа]\n"
+            "/edit_user [ID] phone [новый телефон]\n\n"
+            "Пример: /edit_user 8688778044 fio Иванов Иван Иванович"
+        )
+    
+    try:
+        user_id = int(context.args[0])
+    except ValueError:
+        return await update.message.reply_text("️ ID должен быть числом!")
+    
+    field = context.args[1].lower()
+    new_value = ' '.join(context.args[2:])
+    
+    # Проверяем, что поле существует
+    valid_fields = {'fio': 'full_name', 'group': 'group_name', 'phone': 'phone'}
+    if field not in valid_fields:
+        return await update.message.reply_text(
+            f"️ Неверное поле! Доступные: fio, group, phone\n"
+            f"Пример: /edit_user {user_id} fio Иванов Иван Иванович"
+        )
+    
+    db_field = valid_fields[field]
+    
+    # Проверяем, существует ли пользователь
+    conn = psycopg.connect(os.environ.get('DATABASE_URL'))
+    c = conn.cursor()
+    c.execute('SELECT first_name, full_name, group_name, phone FROM users WHERE user_id = %s', (user_id,))
+    user = c.fetchone()
+    
+    if not user:
+        conn.close()
+        return await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
+    
+    # Обновляем данные
+    c.execute(f'UPDATE users SET {db_field} = %s WHERE user_id = %s', (new_value, user_id))
+    conn.commit()
+    conn.close()
+    
+    field_names = {'fio': 'ФИО', 'group': 'группу', 'phone': 'телефон'}
+    await update.message.reply_text(
+        f"✅ Данные обновлены!\n\n"
+        f"🆔 ID: {user_id}\n"
+        f"📝 Изменено: {field_names[field]}\n"
+        f"📄 Новое значение: {new_value}\n\n"
+        f"👤 Было: {user[0]} | {user[1]} | {user[2]} | {user[3]}"
+    )
 async def delete_user_command(update: Update, context):
     if update.effective_user.id != ADMIN_ID: return await update.message.reply_text("⛔ Только для админа!")
     if not context.args: return await update.message.reply_text("⚠️ Формат: /delete_user [ID]")
@@ -1563,6 +1619,7 @@ def main():
     app.add_handler(CommandHandler("view_homework", view_homework_command))
     app.add_handler(CommandHandler("delete_homework", delete_homework_command))
     app.add_handler(CommandHandler("export_users", export_users_command))
+    app.add_handler(CommandHandler("edit_user", edit_user_command))
     app.add_handler(CommandHandler("delete_user", delete_user_command))
     app.add_handler(CommandHandler("active_users", active_users_command))
     app.add_handler(CommandHandler("inactive_users", inactive_users_command))
