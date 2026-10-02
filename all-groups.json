@@ -1,0 +1,108 @@
+{
+  "2p1": {
+    "groupName": "2П-1",
+    "schedule": {
+      "Понедельник": [
+        { "slot": 1, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "Операционные системы", "teacher": "Альбатша А.М.Х.", "room": "217" },
+        { "slot": 3, "subject": "Операционные системы", "teacher": "Альбатша А.М.Х.", "room": "217" },
+        { "slot": 4, "subject": "Математическое моделирование", "teacher": "Кудинова С.Л.", "room": "201" },
+        { "slot": 5, "subject": "Численные методы", "teacher": "Кудинова С.Л.", "room": "201" },
+        { "slot": 6, "subject": "Час куратора", "teacher": "Наумова Е.М.", "room": "—" }
+      ],
+      "Вторник": [
+        { "slot": 1, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "Электронная высшая математика", "teacher": "Кудинова С.Л.", "room": "201" },
+        { "slot": 3, "subject": "Электронная высшая математика", "teacher": "Кудинова С.Л.", "room": "201" },
+        { "slot": 4, "subject": "Информационные технологии", "teacher": "Новиков В.С.", "room": "217" },
+        { "slot": 5, "subject": "История России", "teacher": "Неменов Б.В.", "room": "210" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Среда": [
+        { "slot": 1, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 3, "subject": "Физкультура", "teacher": "Наумова", "room": "спортзал" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "История России (дистант)", "teacher": "Неменов Б.В.", "room": "онлайн" }
+      ],
+      "Четверг": [
+        { "slot": 1, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "Разработка программных модулей", "teacher": "Альбатша А.М.Х.", "room": "203" },
+        { "slot": 3, "subject": "Иностранный язык в проф. деятельности", "teacher": "Марфина Л.А.", "room": "221" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Пятница": [
+        { "slot": 1, "subject": "Основы алгоритмизации и программирования (дистант)", "teacher": "Голеусов Р.О.", "room": "онлайн" },
+        { "slot": 2, "subject": "Основы проектирования баз данных (дистант)", "teacher": "Голеусов Р.О.", "room": "онлайн" },
+        { "slot": 3, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Суббота": [
+        { "slot": 1, "subject": "МДК 04.01 Внедрение и поддержка комп. систем", "teacher": "Малькова Е.В.", "room": "217" },
+        { "slot": 2, "subject": "Компьютерные сети", "teacher": "Малькова Е.В.", "room": "217" },
+        { "slot": 3, "subject": "Архитектура аппаратных средств", "teacher": "Малькова Е.В.", "room": "217" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ]
+    }
+  },
+  "1p1": {
+    "groupName": "1П-1",
+    "schedule": {
+      "Понедельник": [
+        { "slot": 1, "subject": "Математика", "teacher": "Пащенко В.П.", "room": "202" },
+        { "slot": 2, "subject": "Русский язык", "teacher": "Милуш А.С.", "room": "213" },
+        { "slot": 3, "subject": "Индивидуальный проект", "teacher": "Кирюхин К.В.", "room": "210" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Вторник": [
+        { "slot": 1, "subject": "Математика", "teacher": "Пащенко В.П.", "room": "202" },
+        { "slot": 2, "subject": "История", "teacher": "Неменов Б.В.", "room": "210" },
+        { "slot": 3, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Среда": [
+        { "slot": 1, "subject": "Информатика", "teacher": "Новиков В.С.", "room": "217" },
+        { "slot": 2, "subject": "Литература", "teacher": "Милуш А.С.", "room": "202" },
+        { "slot": 3, "subject": "Иностранный язык", "teacher": "Марфина Л.А.", "room": "202" },
+        { "slot": 4, "subject": "Химия", "teacher": "Паршукова Э.В.", "room": "210" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Четверг": [
+        { "slot": 1, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "ОБЗиРФ", "teacher": "Наумова Е.М.", "room": "213" },
+        { "slot": 3, "subject": "Физика", "teacher": "Хохленкова И.Л.", "room": "216а" },
+        { "slot": 4, "subject": "Час куратора", "teacher": "Титлова И.И.", "room": "—" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ],
+      "Пятница": [
+        { "slot": 1, "subject": "Физическая культура", "teacher": "Наумова Е.М.", "room": "спортзал" },
+        { "slot": 2, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 3, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "История (дистант)", "teacher": "Неменов Б.В.", "room": "онлайн" },
+        { "slot": 6, "subject": "Обществознание (дистант)", "teacher": "Неменов Б.В.", "room": "онлайн" }
+      ],
+      "Суббота": [
+        { "slot": 1, "subject": "День самостоятельной работы", "teacher": "", "room": "" },
+        { "slot": 2, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 3, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 4, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 5, "subject": "—", "teacher": "", "room": "" },
+        { "slot": 6, "subject": "—", "teacher": "", "room": "" }
+      ]
+    }
+  }
+}
