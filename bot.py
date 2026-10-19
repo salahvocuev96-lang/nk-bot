@@ -12,7 +12,7 @@ from flask import Flask
 from threading import Thread
 
 # ==================== НАСТРОЙКИ ====================
-BOT_TOKEN = "8951290780:AAEE1VDMjka29-WK1THxFjX_kvY1j-bkW4Y"
+BOT_TOKEN = ""
 ADMIN_ID = 8688778044
 COLLEGE_NAME = "NK College"
 TIMEZONE = timezone('Europe/Moscow')
